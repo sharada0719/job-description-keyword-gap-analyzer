@@ -3,7 +3,9 @@ Resume ORM model.
 """
 from typing import List
 
-from sqlalchemy import ForeignKey, String, Text
+from typing import Optional
+
+from sqlalchemy import ForeignKey, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.base import Base, TimestampMixin
@@ -17,6 +19,8 @@ class ResumeModel(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_type: Mapped[str] = mapped_column(String(10), nullable=False)  # pdf | docx
+    file_size: Mapped[Optional[int]] = mapped_column(nullable=True)     # bytes
+    file_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)  # original file
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Relationships

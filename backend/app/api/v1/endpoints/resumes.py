@@ -1,9 +1,11 @@
 """
-Resume endpoints — upload, list, retrieve, delete.
+Resume endpoints — upload, list, retrieve, download, delete.
 """
+import mimetypes
 from typing import List
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
 
 from app.application.dtos.common import MessageResponse
 from app.application.dtos.resume import ResumeResponse
@@ -49,9 +51,47 @@ async def get_resume(
     current_user: CurrentUser,
     db: DBSession,
 ) -> ResumeResponse:
-    """Get a single resume by ID."""
+    """Get a single resume's metadata by ID."""
     service = ResumeService(db)
     return await service.get_resume(resume_id, current_user.id)
+
+
+@router.get("/{resume_id}/download")
+async def download_resume(
+    resume_id: int,
+    current_user: CurrentUser,
+    db: DBSession,
+) -> Response:
+    """
+    Download the original uploaded resume file.
+
+    Only the owner of the resume can download it (ownership enforced by
+    get_resume_file which filters by both resume_id AND user_id).
+
+    Returns the raw file bytes with the correct Content-Type and a
+    Content-Disposition header so the browser either opens or saves it.
+    """
+    service = ResumeService(db)
+    filename, file_bytes, file_type = await service.get_resume_file(
+        resume_id, current_user.id
+    )
+
+    # Determine the MIME type from the stored file_type (pdf / docx / doc)
+    mime_map = {
+        "pdf":  "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc":  "application/msword",
+    }
+    media_type = mime_map.get(file_type.lower(), "application/octet-stream")
+
+    return Response(
+        content=file_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Length": str(len(file_bytes)),
+        },
+    )
 
 
 @router.delete("/{resume_id}", response_model=MessageResponse)

@@ -35,6 +35,8 @@ class ResumeService:
             title=title,
             original_filename=filename,
             file_type=file_type.value,
+            file_size=len(file_bytes),
+            file_data=file_bytes,
             raw_text=raw_text,
         )
         resume = await self._repo.create(resume)
@@ -54,6 +56,25 @@ class ResumeService:
         if resume is None:
             raise NotFoundError(f"Resume {resume_id} not found.")
         return ResumeResponse.model_validate(resume)
+
+    async def get_resume_file(
+        self, resume_id: int, user_id: int
+    ) -> tuple[str, bytes, str]:
+        """
+        Return (original_filename, file_bytes, file_type) for download.
+        Raises NotFoundError if the resume doesn't belong to this user,
+        or if the file data was not stored (legacy upload).
+        """
+        from fastapi import HTTPException, status as http_status
+        resume = await self._repo.get_by_id_and_user(resume_id, user_id)
+        if resume is None:
+            raise NotFoundError(f"Resume {resume_id} not found.")
+        if not resume.file_data:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="File data not available for this resume. Please re-upload.",
+            )
+        return resume.original_filename, resume.file_data, resume.file_type
 
     async def delete_resume(self, resume_id: int, user_id: int) -> None:
         resume = await self._repo.get_by_id_and_user(resume_id, user_id)

@@ -14,6 +14,15 @@ export const resumesApi = {
   get: (id) =>
     apiClient.get(`/resumes/${id}`).then((r) => r.data),
 
+  /**
+   * Download the original resume file.
+   * Returns a Blob so the caller can create an object URL or trigger a save.
+   */
+  download: (id) =>
+    apiClient
+      .get(`/resumes/${id}/download`, { responseType: 'blob' })
+      .then((r) => ({ blob: r.data, headers: r.headers })),
+
   delete: (id) =>
     apiClient.delete(`/resumes/${id}`).then((r) => r.data),
 }

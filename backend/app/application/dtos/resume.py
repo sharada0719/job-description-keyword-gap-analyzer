@@ -2,6 +2,7 @@
 Resume request / response DTOs.
 """
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,6 +13,7 @@ class ResumeResponse(BaseModel):
     title: str
     original_filename: str
     file_type: str
+    file_size: Optional[int] = None   # bytes — None for resumes uploaded before this column existed
     created_at: datetime
     updated_at: datetime
 
