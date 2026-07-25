@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { analysisApi } from '../api/analysis.js'
 import { useResumes } from '../hooks/useResumes.js'
 import { useJobs } from '../hooks/useJobs.js'
@@ -7,12 +7,18 @@ import Spinner from '../components/common/Spinner.jsx'
 import Alert from '../components/common/Alert.jsx'
 
 export default function NewAnalysisPage() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const { resumes, loading: resumesLoading } = useResumes()
   const { jobs,    loading: jobsLoading }    = useJobs()
 
+  // Pre-select the job if we arrived via "Run Analysis" from JobsPage
+  const preselectedJobId = location.state?.jobId
+    ? String(location.state.jobId)
+    : ''
+
   const [resumeId, setResumeId] = useState('')
-  const [jobId,    setJobId]    = useState('')
+  const [jobId,    setJobId]    = useState(preselectedJobId)
   const [running,  setRunning]  = useState(false)
   const [error,    setError]    = useState('')
 
