@@ -1,0 +1,32 @@
+# ── Web Framework ─────────────────────────────────────────────────────────────
+fastapi==0.111.1
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.31
+aiosqlite==0.20.0          # async SQLite driver (replaces asyncpg)
+alembic==1.13.2
+
+# ── Auth & Security ───────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ── Config ────────────────────────────────────────────────────────────────────
+pydantic[email]==2.8.2
+pydantic-settings==2.3.4
+python-dotenv==1.0.1
+
+# ── AI / NLP ──────────────────────────────────────────────────────────────────
+spacy==3.7.5
+# After install run: python -m spacy download en_core_web_sm
+sentence-transformers==3.0.1
+keybert==0.8.5
+numpy==1.26.4
+
+# ── File Parsing ──────────────────────────────────────────────────────────────
+pdfplumber==0.11.2
+python-docx==1.1.2
+
+# ── HTTP Client (internal use / health checks) ────────────────────────────────
+httpx==0.27.0

@@ -1,0 +1,110 @@
+"""
+Application configuration using Pydantic BaseSettings.
+All values are read from environment variables / .env file.
+"""
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+    # ── Application ──────────────────────────────────────────────
+    APP_NAME: str = "Job Gap Analyzer"
+    APP_VERSION: str = "1.0.0"
+    DEBUG: bool = False
+    ENVIRONMENT: str = "development"
+
+    # ── API ──────────────────────────────────────────────────────
+    API_V1_PREFIX: str = "/api/v1"
+
+    # ── Security ─────────────────────────────────────────────────
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # ── Database (SQLite) ─────────────────────────────────────────
+    # Path to the SQLite file relative to the backend working directory.
+    SQLITE_PATH: str = "./jobgap.db"
+
+    @property
+    def DATABASE_URL(self) -> str:
+        """Async URL used by SQLAlchemy at runtime (aiosqlite driver)."""
+        return f"sqlite+aiosqlite:///{self.SQLITE_PATH}"
+
+    @property
+    def SYNC_DATABASE_URL(self) -> str:
+        """Sync URL used by Alembic migrations (built-in sqlite3 driver)."""
+        return f"sqlite:///{self.SQLITE_PATH}"
+
+    # ── CORS ─────────────────────────────────────────────────────
+    # Accepts comma-separated string from .env: "http://a.com,http://b.com"
+    # or a JSON array string: '["http://a.com"]'
+    # Declared as str here; converted to List[str] by the validator below.
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors(cls, v):
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                import json
+                parsed = json.loads(v)
+                return ",".join(parsed)   # store back as CSV string
+            return v
+        return v
+
+    @property
+    def CORS_ORIGINS_LIST(self) -> list:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    # ── File Upload ───────────────────────────────────────────────
+    MAX_UPLOAD_SIZE_MB: int = 5
+    # Comma-separated string: "pdf,docx,doc"
+    ALLOWED_EXTENSIONS: str = "pdf,docx,doc"
+
+    @field_validator("ALLOWED_EXTENSIONS", mode="before")
+    @classmethod
+    def parse_extensions(cls, v):
+        if isinstance(v, list):
+            return ",".join(v)
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                import json
+                return ",".join(json.loads(v))
+            return v
+        return v
+
+    @property
+    def ALLOWED_EXTENSIONS_LIST(self) -> list:
+        return [e.strip() for e in self.ALLOWED_EXTENSIONS.split(",") if e.strip()]
+
+    # ── NLP / AI ─────────────────────────────────────────────────
+    SPACY_MODEL: str = "en_core_web_sm"
+    SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
+    KEYBERT_TOP_N: int = 20
+    SIMILARITY_THRESHOLD: float = 0.75
+
+    # ── Logging ───────────────────────────────────────────────────
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "logs"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

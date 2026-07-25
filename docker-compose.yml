@@ -1,0 +1,45 @@
+services:
+  # ── Backend ─────────────────────────────────────────────────────────────────
+  # SQLite database file lives inside the container volume — no separate DB service needed.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: jobgap_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      SQLITE_PATH: /app/data/jobgap.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+      - backend_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        VITE_API_URL: ""
+    container_name: jobgap_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend_data:
+  backend_logs:
