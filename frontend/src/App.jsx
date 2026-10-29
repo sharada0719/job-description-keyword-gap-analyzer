@@ -13,6 +13,7 @@ import JobsPage from './pages/JobsPage.jsx'
 import NewAnalysisPage from './pages/NewAnalysisPage.jsx'
 import AnalysisDetailPage from './pages/AnalysisDetailPage.jsx'
 import AnalysisHistoryPage from './pages/AnalysisHistoryPage.jsx'
+import JobSearchPage from './pages/JobSearchPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/analysis/new"             element={<NewAnalysisPage />} />
             <Route path="/analysis"                 element={<AnalysisHistoryPage />} />
             <Route path="/analysis/:id"             element={<AnalysisDetailPage />} />
+            <Route path="/jobs/search"               element={<JobSearchPage />} />
             <Route path="/profile"                  element={<ProfilePage />} />
           </Route>
         </Route>

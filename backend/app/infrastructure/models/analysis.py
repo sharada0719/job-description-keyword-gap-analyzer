@@ -1,6 +1,8 @@
 """
 Analysis ORM model — stores full keyword-gap analysis results.
 """
+from typing import Optional
+
 from sqlalchemy import Float, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +34,9 @@ class AnalysisModel(Base, TimestampMixin):
     resume_keywords: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     job_keywords: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     suggestions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+    # ATS compatibility report — additive, nullable so legacy rows validate.
+    ats_report: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Relationships
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="analyses")

@@ -95,7 +95,17 @@ class Settings(BaseSettings):
     SPACY_MODEL: str = "en_core_web_sm"
     SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
     KEYBERT_TOP_N: int = 20
+    # Min embedding similarity to count a keyword as a strong (semantic) match.
     SIMILARITY_THRESHOLD: float = 0.75
+    # Min embedding similarity for the "uncertain" match band. Matches at or
+    # above this value but below SIMILARITY_THRESHOLD are reported as uncertain
+    # (half weight in the coverage score) rather than missing.
+    UNCERTAIN_MATCH_MIN: float = 0.60
+    # ATS compatibility threshold (0–1). The "ATS-friendly" success popup is
+    # shown only when the ATS score meets or exceeds this value AND the
+    # required parsing/compatibility checks pass. Single source of truth —
+    # surfaced to the frontend via the analysis report, not hard-coded there.
+    ATS_COMPATIBILITY_THRESHOLD: float = 0.80
 
     # ── Logging ───────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"

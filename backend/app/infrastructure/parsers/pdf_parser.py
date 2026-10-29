@@ -2,6 +2,7 @@
 PDF text extraction using pdfplumber.
 """
 import io
+import re
 
 import pdfplumber
 
@@ -24,7 +25,10 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 if page_text:
                     text_parts.append(page_text.strip())
 
+        # Collapse excessive blank lines (common in multi-column PDFs) while
+        # preserving section structure.
         full_text = "\n\n".join(text_parts).strip()
+        full_text = re.sub(r"\n{3,}", "\n\n", full_text)
         if not full_text:
             raise FileProcessingError(
                 "Could not extract text from PDF. "

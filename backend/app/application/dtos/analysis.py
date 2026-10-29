@@ -2,7 +2,7 @@
 Analysis request / response DTOs.
 """
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -15,6 +15,29 @@ class AnalysisRequest(BaseModel):
 class KeywordMatchDTO(BaseModel):
     keyword: str
     score: float
+    # Optional explainability fields. Default to None so older analysis rows
+    # (which only stored {keyword, score}) still validate.
+    match_type: Optional[str] = None
+    best_match: Optional[str] = None
+    evidence: Optional[str] = None
+    requirement_level: Optional[str] = None
+
+
+class AtsCheckDTO(BaseModel):
+    name: str
+    passed: bool
+    weight: Optional[float] = None
+    detail: Optional[str] = None
+
+
+class AtsReportDTO(BaseModel):
+    """ATS compatibility report — independent of the job-match score."""
+    score: float
+    threshold: float
+    passed: bool
+    checks: List[AtsCheckDTO]
+    warnings: List[str]
+    recommendations: List[str]
 
 
 class AnalysisResponse(BaseModel):
@@ -30,6 +53,9 @@ class AnalysisResponse(BaseModel):
     resume_keywords: List[str]
     job_keywords: List[str]
     suggestions: List[str]
+    # ATS compatibility report. Optional/None for legacy rows written before
+    # this field existed — fully backward compatible.
+    ats_report: Optional[AtsReportDTO] = None
     created_at: datetime
     updated_at: datetime
 

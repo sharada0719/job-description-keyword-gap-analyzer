@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { analysisApi } from '../api/analysis.js'
 import { useResumes } from '../hooks/useResumes.js'
@@ -12,10 +12,7 @@ export default function NewAnalysisPage() {
   const { resumes, loading: resumesLoading } = useResumes()
   const { jobs,    loading: jobsLoading }    = useJobs()
 
-  // Pre-select the job if we arrived via "Run Analysis" from JobsPage
-  const preselectedJobId = location.state?.jobId
-    ? String(location.state.jobId)
-    : ''
+  const preselectedJobId = location.state?.jobId ? String(location.state.jobId) : ''
 
   const [resumeId, setResumeId] = useState('')
   const [jobId,    setJobId]    = useState(preselectedJobId)
@@ -23,15 +20,12 @@ export default function NewAnalysisPage() {
   const [error,    setError]    = useState('')
 
   const isLoading = resumesLoading || jobsLoading
+  const canRun    = resumeId && jobId && !running
 
   async function handleRun(e) {
     e.preventDefault()
-    if (!resumeId || !jobId) {
-      setError('Please select both a resume and a job description.')
-      return
-    }
-    setRunning(true)
-    setError('')
+    if (!resumeId || !jobId) { setError('Please select both a resume and a job description.'); return }
+    setRunning(true); setError('')
     try {
       const result = await analysisApi.run({
         resume_id: parseInt(resumeId, 10),
@@ -40,23 +34,22 @@ export default function NewAnalysisPage() {
       navigate(`/analysis/${result.id}`)
     } catch (err) {
       setError(err?.response?.data?.message || 'Analysis failed. Please try again.')
-    } finally {
-      setRunning(false)
-    }
+    } finally { setRunning(false) }
   }
 
   return (
     <div className="max-w-xl mx-auto space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">New Analysis</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Select a resume and a job description to run a keyword-gap analysis.
+        <p className="text-xs text-primary-400 font-medium uppercase tracking-wider mb-1">Analysis</p>
+        <h1 className="page-title">New Analysis</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Select a resume and job description to run an AI keyword-gap analysis.
         </p>
       </div>
 
       <div className="card">
         {isLoading ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
+          <div className="flex justify-center py-10"><Spinner /></div>
         ) : (
           <form onSubmit={handleRun} noValidate className="space-y-5">
             <Alert message={error} variant="error" />
@@ -64,10 +57,10 @@ export default function NewAnalysisPage() {
             <div>
               <label htmlFor="resume-select" className="label">Resume</label>
               {resumes.length === 0 ? (
-                <p className="text-sm text-yellow-600">
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-300">
                   No resumes found.{' '}
-                  <a href="/resumes" className="underline">Upload one first.</a>
-                </p>
+                  <Link to="/resumes" className="underline text-amber-400 hover:text-amber-300">Upload one first →</Link>
+                </div>
               ) : (
                 <select
                   id="resume-select"
@@ -86,10 +79,10 @@ export default function NewAnalysisPage() {
             <div>
               <label htmlFor="job-select" className="label">Job Description</label>
               {jobs.length === 0 ? (
-                <p className="text-sm text-yellow-600">
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-300">
                   No job descriptions found.{' '}
-                  <a href="/jobs" className="underline">Add one first.</a>
-                </p>
+                  <Link to="/jobs" className="underline text-amber-400 hover:text-amber-300">Add one first →</Link>
+                </div>
               ) : (
                 <select
                   id="job-select"
@@ -109,8 +102,8 @@ export default function NewAnalysisPage() {
 
             <button
               type="submit"
-              className="btn-primary w-full"
-              disabled={running || resumes.length === 0 || jobs.length === 0}
+              className="btn-gradient w-full justify-center py-3 text-base"
+              disabled={!canRun || resumes.length === 0 || jobs.length === 0}
             >
               {running ? (
                 <><Spinner size="sm" /> Analysing — this may take a moment…</>
@@ -118,6 +111,12 @@ export default function NewAnalysisPage() {
                 '⚡ Run Analysis'
               )}
             </button>
+
+            {running && (
+              <p className="text-xs text-slate-500 text-center">
+                AI keyword extraction and semantic matching in progress…
+              </p>
+            )}
           </form>
         )}
       </div>

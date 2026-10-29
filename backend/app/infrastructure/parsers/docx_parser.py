@@ -2,6 +2,7 @@
 DOCX / DOC text extraction using python-docx.
 """
 import io
+import re
 
 from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
@@ -29,6 +30,8 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
                         paragraphs.append(cell_text)
 
         full_text = "\n".join(paragraphs).strip()
+        # Collapse excessive blank lines while keeping section structure.
+        full_text = re.sub(r"\n{3,}", "\n\n", full_text)
         if not full_text:
             raise FileProcessingError(
                 "Could not extract text from the document. The file appears to be empty."

@@ -1,0 +1,2 @@
+# Development / test dependencies (not required for production runtime).
+pytest==8.2.2

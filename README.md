@@ -1,7 +1,7 @@
 # Job Description Keyword Gap Analyzer
 
 An AI-powered Resume Intelligence & Recruitment Analytics Platform.
-Upload your resume, paste a job description, and instantly discover which keywords are missing — with semantic similarity scoring and actionable improvement suggestions.
+Upload your resume, paste a job description, and instantly discover which keywords are missing — with semantic similarity scoring, ATS compatibility analysis, and actionable improvement suggestions.
 
 ---
 
@@ -10,9 +10,13 @@ Upload your resume, paste a job description, and instantly discover which keywor
 - **JWT Authentication** — register, login, token refresh
 - **Resume Upload** — PDF and DOCX parsing with `pdfplumber` and `python-docx`
 - **Job Description Management** — save and reuse job postings
-- **AI Keyword Extraction** — `KeyBERT` with 1–2 gram keyphrases
+- **AI Keyword Extraction** — `KeyBERT` with 1–2 gram keyphrases + curated technical-skill scan that preserves `C++`, `C#`, `.NET`, `Node.js`, `CI/CD`, `REST APIs`, `SQL`, `JavaScript`, etc.
 - **Semantic Similarity** — `sentence-transformers` (all-MiniLM-L6-v2) cosine scoring
 - **Gap Analysis** — matched / missing keywords, composite score, suggestions
+- **Improved Skill Matching** — exact/alias matching with confusable-technology guards (Java ≠ JavaScript, React ≠ Vue) and an "uncertain" band. Match types and evidence snippets are returned.
+- **ATS Compatibility Score** — independent, text-based ATS analysis with 5 transparent checks, warnings, and recommendations. Score is **not** derived from the job-match score.
+- **ATS-Friendly Popup** — shown once per session when the ATS score ≥ 80% **and** the required parsing/compatibility checks pass.
+- **Job & Internship Recommendations** — grounded role suggestions linked to legitimate public job boards (Indeed, LinkedIn, Internshala, Wellfound, Google Jobs, Glassdoor). No fake vacancies or salaries are generated.
 - **Analytics Dashboard** — radar chart, bar chart, keyword clouds
 - **Clean Architecture** — Domain → Application → Infrastructure → Presentation
 
@@ -215,3 +219,148 @@ See `backend/.env.example` for the full reference. Key variables:
 - **Repository Pattern**: all database access goes through typed async repositories; services never import SQLAlchemy directly.
 - **Lazy AI Loading**: NLP models are loaded on first request (with a startup warm-up) to keep cold-start memory low.
 - **Async throughout**: FastAPI + asyncpg + SQLAlchemy async engine; no blocking I/O on the event loop.
+
+---
+
+## ATS Compatibility Scoring
+
+The ATS score is **independent** of the job-match score. It assesses how well the resume's extracted text can be parsed by an automated system, using five weighted checks:
+
+| Check | Weight | What it measures |
+|---|---|---|
+| Text extractable | 15% | Non-trivial text (≥ 50 chars) was extracted |
+| Meaningful content | 30% | Sufficient word count (≥ 150 words = full score, 60–149 = half score) |
+| Contact information | 20% | Email and/or phone number detectable |
+| Resume sections | 25% | Standard headings (Experience, Education, Skills, …) found |
+| Text quality | 10% | No major layout artefacts (very long lines, repeated headers, low alphanumeric ratio) |
+
+**ATS score ≥ 80% AND both gating checks (text extractable + meaningful content) pass → `passed: true` → success popup shown.**
+
+The popup is shown **once per analysis per browser session** using `sessionStorage`.
+
+### Limitations of ATS scoring
+
+- Scores are based only on **extracted text**. Visual formatting (fonts, columns, colours, images) cannot be assessed.
+- Different ATS products behave differently — a high score does not guarantee parsing success on every employer's system.
+- Passing the ATS check does not guarantee an interview or selection.
+
+---
+
+## Job-Match Score vs ATS Compatibility
+
+| | Job-Match Score | ATS Compatibility |
+|---|---|---|
+| **What it measures** | How well your skills overlap with a specific job description | How reliably the resume can be parsed by automated systems |
+| **Depends on** | Resume + job description keywords and semantic similarity | Resume text structure, formatting, and content |
+| **Formula** | `0.4 × semantic_similarity + 0.6 × keyword_coverage` | Weighted sum of 5 structural checks |
+| **Threshold** | None (shown as a percentage, not a hiring probability) | 80% (configurable via `ATS_COMPATIBILITY_THRESHOLD`) |
+| **What it is NOT** | A probability of being selected | A guarantee of an interview |
+
+A resume can have a **high ATS score but low job match** (well-structured but wrong skills) or **high job match but low ATS score** (right skills but hard to parse).
+
+---
+
+## Job & Internship Recommendations
+
+The recommendations feature (`POST /api/v1/recommendations/`) uses skills extracted from an existing analysis to suggest relevant roles (internships, fresher-friendly, graduate trainee, full-time). For each suggestion it provides:
+
+- Role title and description
+- Tags (internship / full-time / fresher-friendly / graduate-trainee)
+- Resume skills that match the role
+- A relevance score (0–1)
+- Deep-link search URLs on legitimate public job boards
+
+**No external API is required** — the feature works offline. All URLs link to the board's own search results. No vacancies, salaries, company names, or application deadlines are fabricated.
+
+### External API extension point
+
+If you configure `JSEARCH_API_KEY` in `.env`, the recommendations endpoint can be extended to append live job listings. The key is not used by the current implementation.
+
+---
+
+## New Environment Variables (Parts 1–3)
+
+| Variable | Default | Description |
+|---|---|---|
+| `UNCERTAIN_MATCH_MIN` | `0.60` | Minimum embedding similarity for the "uncertain" keyword-match band |
+| `ATS_COMPATIBILITY_THRESHOLD` | `0.80` | ATS score threshold for the success popup |
+
+---
+
+## New API Endpoint
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/v1/recommendations/` | Yes | Get job/internship recommendations from an analysis |
+
+**Request body:**
+```json
+{
+  "analysis_id": 1,
+  "location": "London",
+  "include_internships": true,
+  "include_fulltime": true,
+  "max_results": 8
+}
+```
+
+---
+
+## Running Tests
+
+### Backend
+
+```bash
+cd backend
+
+# Install dev dependencies (pytest only — not needed for production)
+pip install -r requirements-dev.txt
+
+# Run all tests
+python -m pytest tests -v
+
+# Run a specific test file
+python -m pytest tests/test_ats_scorer.py -v
+python -m pytest tests/test_recommendations.py -v
+
+# Syntax check all backend files
+python check_syntax.py
+```
+
+Test files and what they cover:
+
+| File | Coverage |
+|---|---|
+| `test_skill_taxonomy.py` | Normalisation, alias folding, Java≠JavaScript, confusable guard, noise filter |
+| `test_keyword_extractor.py` | Noise-reduction filter, fragment/composite dropping |
+| `test_matching.py` | Exact/alias/semantic/uncertain matching, confusable guard, dedup, evidence, backward compat |
+| `test_parsers.py` | PDF/DOCX extraction, empty/corrupted files, oversized files, extension rejection |
+| `test_analysis_scoring.py` | Requirement-level detection, suggestion wording, DTO backward compatibility |
+| `test_ats_scorer.py` | All 8 ATS scenarios (pass/fail/gating/empty/legacy/.doc/reproducibility) |
+| `test_recommendations.py` | Role generation, filtering, no-fake-data, link domains, score ordering, reproducibility |
+
+### Frontend
+
+```bash
+cd frontend
+
+# Build (verifies JSX compiles)
+npm run build
+
+# Lint the source
+npm run lint
+```
+
+> Pre-existing lint warnings in `LoginPage.jsx`, `NewAnalysisPage.jsx`, `NotFoundPage.jsx`, `ProfilePage.jsx`, and `ResumesPage.jsx` (unused `React` import) are not introduced by Parts 1–3.
+
+---
+
+## Security Notes
+
+- `SECRET_KEY` must be set to a random 64-char hex string. Never use the placeholder value.
+- `.env` is in `.gitignore` and must never be committed.
+- All data queries filter by both resource ID and `user_id` — cross-user data access is not possible.
+- Resume file bytes are validated for size (≤ 5 MB) and extension before parsing.
+- Uploaded files are processed in-memory (`io.BytesIO`); no file is written to disk.
+- Passwords are bcrypt-hashed; plaintext passwords are never stored or logged.
+- JWT access tokens expire after 60 minutes; refresh tokens after 7 days.

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { resumesApi } from '../api/resumes.js'
 import { useResumes } from '../hooks/useResumes.js'
 import Spinner from '../components/common/Spinner.jsx'
@@ -8,9 +8,6 @@ import ConfirmDialog from '../components/common/ConfirmDialog.jsx'
 import { formatDate } from '../utils/formatters.js'
 import { validateFileType, validateFileSize, validateRequired } from '../utils/validators.js'
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-/** Human-readable file size: 1 024 → "1.0 KB" */
 function formatFileSize(bytes) {
   if (bytes == null) return '—'
   if (bytes < 1024)        return `${bytes} B`
@@ -18,74 +15,53 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** Trigger a file download in the browser using a Blob object URL. */
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
-  const a   = document.createElement('a')
-  a.href        = url
-  a.download    = filename
-  a.style.display = 'none'
+  const a   = Object.assign(document.createElement('a'), {
+    href: url, download: filename, style: 'display:none',
+  })
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
 
-// ── File-type badge ────────────────────────────────────────────────────────────
-const TYPE_STYLES = {
-  pdf:  'bg-red-100  text-red-700',
-  docx: 'bg-blue-100 text-blue-700',
-  doc:  'bg-blue-100 text-blue-700',
-}
-
 function FileTypeBadge({ type }) {
   const label = type?.toUpperCase() || '?'
-  const style = TYPE_STYLES[type?.toLowerCase()] || 'bg-gray-100 text-gray-600'
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${style}`}>
-      {label}
-    </span>
-  )
+  const cls =
+    type?.toLowerCase() === 'pdf'  ? 'badge-red' :
+    type?.toLowerCase()?.startsWith('doc') ? 'badge-blue' : 'badge-gray'
+  return <span className={cls}>{label}</span>
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
 export default function ResumesPage() {
   const { resumes, loading, error, refetch, deleteResume } = useResumes()
 
-  // ── Upload form state
   const [uploading,   setUploading]   = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [uploadOk,    setUploadOk]    = useState('')
   const [title,       setTitle]       = useState('')
   const [file,        setFile]        = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
+  const [dragOver,    setDragOver]    = useState(false)
   const fileRef = useRef()
 
-  // ── Delete confirmation state
-  const [confirmResume, setConfirmResume] = useState(null)   // the resume object to delete
+  const [confirmResume, setConfirmResume] = useState(null)
   const [deleteError,   setDeleteError]   = useState('')
-
-  // ── Per-row action state
   const [downloadingId, setDownloadingId] = useState(null)
-  // ── View notice (shown when a DOCX is opened via the View button)
-  const [viewNoticeId, setViewNoticeId] = useState(null)
+  const [search,        setSearch]        = useState('')
 
-  // ── Search
-  const [search, setSearch] = useState('')
-
-  // ── Filtered list (client-side, instant)
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return resumes
     return resumes.filter(
       (r) =>
         r.original_filename.toLowerCase().includes(q) ||
-        formatDate(r.created_at).toLowerCase().includes(q) ||
-        r.title.toLowerCase().includes(q)
+        r.title.toLowerCase().includes(q) ||
+        formatDate(r.created_at).toLowerCase().includes(q)
     )
   }, [resumes, search])
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
   function validateForm() {
     const e = {}
     const titleErr = validateRequired(title, 'Title')
@@ -95,7 +71,7 @@ export default function ResumesPage() {
     if (typeErr)  e.file  = typeErr
     if (sizeErr)  e.file  = sizeErr
     setFieldErrors(e)
-    return Object.keys(e).length === 0
+    return !Object.keys(e).length
   }
 
   async function handleUpload(e) {
@@ -103,7 +79,6 @@ export default function ResumesPage() {
     setUploadOk('')
     setUploadError('')
     if (!validateForm()) return
-
     setUploading(true)
     try {
       const fd = new FormData()
@@ -116,84 +91,62 @@ export default function ResumesPage() {
       setUploadOk('Resume uploaded successfully.')
       await refetch()
     } catch (err) {
-      setUploadError(
-        err?.response?.data?.message ||
-        err?.response?.data?.detail  ||
-        'Upload failed. Please try again.'
-      )
+      setUploadError(err?.response?.data?.message || err?.response?.data?.detail || 'Upload failed.')
     } finally {
       setUploading(false)
     }
   }
 
-  // ── Download ───────────────────────────────────────────────────────────────
+  function handleDrop(e) {
+    e.preventDefault()
+    setDragOver(false)
+    const dropped = e.dataTransfer.files[0]
+    if (dropped) setFile(dropped)
+  }
+
   async function handleDownload(resume) {
     setDownloadingId(resume.id)
     try {
       const { blob } = await resumesApi.download(resume.id)
       triggerDownload(blob, resume.original_filename)
-    } catch (err) {
-      alert(
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        'Download failed. The file may not be available.'
-      )
-    } finally {
-      setDownloadingId(null)
-    }
+    } catch { alert('Download failed.') }
+    finally { setDownloadingId(null) }
   }
 
-  // ── View (open in new tab) ─────────────────────────────────────────────────
   async function handleView(resume) {
     if (resume.file_type?.toLowerCase() !== 'pdf') {
-      // Non-PDF: fall back to download
-      await handleDownload(resume)
-      return
+      await handleDownload(resume); return
     }
     setDownloadingId(resume.id)
     try {
       const { blob } = await resumesApi.download(resume.id)
       const url = URL.createObjectURL(blob)
       window.open(url, '_blank', 'noopener,noreferrer')
-      // Revoke after a short delay to give the new tab time to load
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
-    } catch (err) {
-      alert(
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        'Could not open the file.'
-      )
-    } finally {
-      setDownloadingId(null)
-    }
+    } catch { alert('Could not open the file.') }
+    finally { setDownloadingId(null) }
   }
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDeleteConfirmed() {
     if (!confirmResume) return
     setDeleteError('')
-    try {
-      await deleteResume(confirmResume.id)
-    } catch (err) {
-      setDeleteError(
-        err?.response?.data?.message || 'Delete failed. Please try again.'
-      )
-    } finally {
-      setConfirmResume(null)
-    }
+    try { await deleteResume(confirmResume.id) }
+    catch { setDeleteError('Delete failed. Please try again.') }
+    finally { setConfirmResume(null) }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">My Resumes</h1>
+      <div>
+        <p className="text-xs text-primary-400 font-medium uppercase tracking-wider mb-1">Resumes</p>
+        <h1 className="page-title">My Resumes</h1>
+      </div>
 
-      {/* ── Upload form ─────────────────────────────────────────────────── */}
-      <div className="card">
-        <h2 className="text-base font-semibold text-gray-900 mb-4">Upload Resume</h2>
-
-        <Alert message={uploadError} variant="error"   className="mb-4" />
-        <Alert message={uploadOk}    variant="success" className="mb-4" />
+      {/* Upload card */}
+      <div className="card space-y-5">
+        <h2 className="section-title">Upload Resume</h2>
+        <Alert message={uploadError} variant="error" />
+        <Alert message={uploadOk}    variant="success" />
 
         <form onSubmit={handleUpload} noValidate className="space-y-4">
           <div>
@@ -206,60 +159,75 @@ export default function ResumesPage() {
               value={title}
               onChange={(e) => { setTitle(e.target.value); setUploadOk('') }}
             />
-            {fieldErrors.title && (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>
-            )}
+            {fieldErrors.title && <p className="mt-1 text-xs text-coral-400">{fieldErrors.title}</p>}
           </div>
 
-          <div>
-            <label htmlFor="resume-file" className="label">
-              File <span className="text-gray-400 font-normal">(PDF or DOCX, max 5 MB)</span>
-            </label>
+          {/* Drag-and-drop zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            className={`relative rounded-xl border-2 border-dashed p-8 text-center transition-colors cursor-pointer
+              ${dragOver
+                ? 'border-primary-500 bg-primary-500/10'
+                : file
+                  ? 'border-emerald-500/50 bg-emerald-500/10'
+                  : 'border-white/[0.12] hover:border-white/25'
+              }`}
+            onClick={() => fileRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
+            aria-label="Upload resume file"
+          >
             <input
               id="resume-file"
               type="file"
               ref={fileRef}
               accept=".pdf,.docx,.doc"
-              className="input-field"
+              className="sr-only"
               onChange={(e) => { setFile(e.target.files[0] || null); setUploadOk('') }}
             />
-            {fieldErrors.file && (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.file}</p>
+            {file ? (
+              <>
+                <div className="text-3xl mb-2">📄</div>
+                <p className="text-sm font-medium text-emerald-400">{file.name}</p>
+                <p className="text-xs text-slate-500 mt-1">{formatFileSize(file.size)} · Click to change</p>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl mb-2">⬆️</div>
+                <p className="text-sm font-medium text-slate-300">
+                  Drag &amp; drop or <span className="text-primary-400">browse</span>
+                </p>
+                <p className="text-xs text-slate-500 mt-1">PDF or DOCX · max 5 MB</p>
+              </>
             )}
           </div>
+          {fieldErrors.file && <p className="text-xs text-coral-400">{fieldErrors.file}</p>}
 
-          <button type="submit" className="btn-primary" disabled={uploading}>
-            {uploading ? (
-              <><Spinner size="sm" className="mr-2" /> Uploading…</>
-            ) : (
-              '📤 Upload Resume'
-            )}
+          <button type="submit" className="btn-gradient" disabled={uploading}>
+            {uploading ? <><Spinner size="sm" /> Uploading…</> : '📤 Upload Resume'}
           </button>
         </form>
       </div>
 
-      {/* ── Uploaded resumes list ────────────────────────────────────────── */}
+      {/* Resume list */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-          <h2 className="text-base font-semibold text-gray-900">
+        <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
+          <h2 className="section-title">
             Uploaded Resumes
             {resumes.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-gray-400">
-                ({resumes.length})
-              </span>
+              <span className="ml-2 text-xs font-normal text-slate-500">({resumes.length})</span>
             )}
           </h2>
-
-          {/* Search box — only visible when there are resumes */}
           {resumes.length > 0 && (
             <div className="relative">
-              <span className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none text-gray-400 text-sm">
-                🔍
-              </span>
+              <span className="absolute inset-y-0 left-3 flex items-center text-slate-500 text-xs pointer-events-none">🔍</span>
               <input
                 type="search"
-                className="input-field pl-8 w-52 text-sm"
-                placeholder="Search filename or date…"
+                className="input-field pl-8 w-48 text-xs"
+                placeholder="Search…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Search resumes"
@@ -268,115 +236,57 @@ export default function ResumesPage() {
           )}
         </div>
 
-        {deleteError && (
-          <Alert message={deleteError} variant="error" className="mb-4" />
-        )}
-
-        {/* Loading skeleton */}
-        {loading && (
-          <div className="flex justify-center py-8">
-            <Spinner />
-          </div>
-        )}
-
-        {/* API error */}
-        {!loading && error && (
-          <Alert message={error} variant="error" />
-        )}
-
-        {/* Empty state */}
+        {deleteError && <Alert message={deleteError} variant="error" className="mb-4" />}
+        {loading && <div className="flex justify-center py-8"><Spinner /></div>}
+        {!loading && error && <Alert message={error} variant="error" />}
         {!loading && !error && resumes.length === 0 && (
-          <EmptyState
-            icon="📄"
-            title="No resumes yet"
-            description="Upload your first resume using the form above."
-          />
+          <EmptyState icon="📄" title="No resumes yet" description="Upload your first resume above." />
         )}
-
-        {/* No search results */}
         {!loading && !error && resumes.length > 0 && filtered.length === 0 && (
           <EmptyState
-            icon="🔍"
-            title="No results"
+            icon="🔍" title="No results"
             description={`No resumes match "${search}".`}
-            action={
-              <button
-                onClick={() => setSearch('')}
-                className="btn-secondary text-sm"
-              >
-                Clear search
-              </button>
-            }
+            action={<button onClick={() => setSearch('')} className="btn-secondary text-xs">Clear search</button>}
           />
         )}
 
-        {/* Resume cards */}
         {!loading && filtered.length > 0 && (
-          <ul className="divide-y divide-gray-100" role="list">
+          <ul className="divide-y divide-white/[0.05]" role="list">
             {filtered.map((r) => {
-              const isActing = downloadingId === r.id
+              const acting = downloadingId === r.id
               return (
                 <li key={r.id} className="py-4">
                   <div className="flex items-start justify-between gap-4">
-                    {/* Left: info */}
                     <div className="min-w-0 space-y-1">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {r.title}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-                        <span className="truncate max-w-[200px]" title={r.original_filename}>
+                      <p className="text-sm font-semibold text-white truncate">{r.title}</p>
+                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500">
+                        <span className="truncate max-w-[180px]" title={r.original_filename}>
                           📎 {r.original_filename}
                         </span>
                         <FileTypeBadge type={r.file_type} />
-                        {r.file_size != null && (
-                          <span>💾 {formatFileSize(r.file_size)}</span>
-                        )}
+                        {r.file_size != null && <span>💾 {formatFileSize(r.file_size)}</span>}
                         <span>📅 {formatDate(r.created_at)}</span>
                       </div>
                     </div>
-
-                    {/* Right: action buttons */}
-                    <div className="flex-shrink-0 flex items-center gap-2">
-                      {/* View */}
+                    <div className="flex-shrink-0 flex items-center gap-1.5">
                       <button
-                        onClick={() => handleView(r)}
-                        disabled={isActing}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg
-                                   text-primary-700 bg-primary-50 hover:bg-primary-100
-                                   disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title={r.file_type?.toLowerCase() === 'pdf' ? 'Open in browser' : 'Download to view'}
-                        aria-label={`View ${r.title}`}
+                        onClick={() => handleView(r)} disabled={acting}
+                        className="badge-blue cursor-pointer hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+                        title={r.file_type?.toLowerCase() === 'pdf' ? 'Open' : 'Download to view'}
                       >
-                        {isActing ? <Spinner size="sm" /> : '👁'}
-                        <span className="hidden sm:inline">View</span>
+                        {acting ? <Spinner size="sm" /> : '👁 View'}
                       </button>
-
-                      {/* Download */}
                       <button
-                        onClick={() => handleDownload(r)}
-                        disabled={isActing}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg
-                                   text-gray-700 bg-gray-100 hover:bg-gray-200
-                                   disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Download original file"
-                        aria-label={`Download ${r.title}`}
+                        onClick={() => handleDownload(r)} disabled={acting}
+                        className="badge-gray cursor-pointer hover:bg-navy-300/30 transition-colors disabled:opacity-50"
                       >
-                        {isActing ? <Spinner size="sm" /> : '⬇'}
-                        <span className="hidden sm:inline">Download</span>
+                        ⬇ Download
                       </button>
-
-                      {/* Delete */}
                       <button
-                        onClick={() => setConfirmResume(r)}
-                        disabled={isActing}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg
-                                   text-red-700 bg-red-50 hover:bg-red-100
-                                   disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Delete resume"
-                        aria-label={`Delete ${r.title}`}
+                        onClick={() => setConfirmResume(r)} disabled={acting}
+                        className="badge-red cursor-pointer hover:bg-coral-500/25 transition-colors disabled:opacity-50"
                       >
-                        🗑
-                        <span className="hidden sm:inline">Delete</span>
+                        🗑 Delete
                       </button>
                     </div>
                   </div>
@@ -387,11 +297,10 @@ export default function ResumesPage() {
         )}
       </div>
 
-      {/* ── Delete confirmation modal ────────────────────────────────────── */}
       {confirmResume && (
         <ConfirmDialog
           title="Delete Resume?"
-          description={`"${confirmResume.title}" will be permanently deleted along with all its analyses. This action cannot be undone.`}
+          description={`"${confirmResume.title}" and all its analyses will be permanently deleted.`}
           confirmLabel="Delete"
           cancelLabel="Cancel"
           onConfirm={handleDeleteConfirmed}
