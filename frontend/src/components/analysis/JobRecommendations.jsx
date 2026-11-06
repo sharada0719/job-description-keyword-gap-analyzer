@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { recommendationsApi } from '../../api/recommendations.js'
+import { applicationsApi } from '../../api/applications.js'
 import Spinner from '../common/Spinner.jsx'
 import Alert from '../common/Alert.jsx'
 
@@ -24,9 +25,33 @@ function TagBadge({ tag }) {
 
 function RoleCard({ rec }) {
   const [expanded, setExpanded] = useState(false)
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [saveError, setSaveError] = useState('')
   const scoreColor =
     rec.score >= 0.7 ? 'text-emerald-400' :
     rec.score >= 0.4 ? 'text-amber-400' : 'text-slate-400'
+
+  async function handleSave() {
+    setSaveState('saving')
+    setSaveError('')
+    try {
+      // Save the role as a tracked application. Role recommendations are
+      // suggested job roles — NOT specific job listings — so we don't invent
+      // company names, locations, or treat search-link URLs as application URLs.
+      await applicationsApi.create({
+        job_title:       rec.title,
+        job_description: rec.description,
+      })
+      setSaveState('saved')
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        setSaveState('saved')  // Already saved — treat as success
+      } else {
+        setSaveError(err?.response?.data?.message || 'Failed to save.')
+        setSaveState('error')
+      }
+    }
+  }
 
   return (
     <div className="bg-navy-500 border border-white/[0.07] rounded-xl p-4 space-y-3 hover:border-white/[0.12] transition-colors">
@@ -52,33 +77,53 @@ function RoleCard({ rec }) {
         </div>
       )}
 
-      <div>
+      {/* Save to Tracker + search links */}
+      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.05]">
+        <button
+          onClick={handleSave}
+          disabled={saveState === 'saving' || saveState === 'saved'}
+          className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${
+            saveState === 'saved'
+              ? 'bg-emerald-500/15 text-emerald-400 cursor-default'
+              : saveState === 'error'
+              ? 'bg-coral-500/15 text-coral-400 hover:bg-coral-500/25'
+              : 'bg-navy-400 text-slate-300 hover:text-white hover:bg-navy-300'
+          }`}
+        >
+          {saveState === 'saving' ? <Spinner size="sm" /> :
+           saveState === 'saved'  ? '✓ Saved to Tracker' :
+           saveState === 'error'  ? '⚠ Try again' :
+           '📋 Save to Tracker'}
+        </button>
         <button
           onClick={() => setExpanded((e) => !e)}
           className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
           aria-expanded={expanded}
         >
-          {expanded ? '▲ Hide search links' : '▼ Find on job boards'}
+          {expanded ? '▲ Hide' : '▼ Job boards'}
         </button>
-        {expanded && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {rec.search_links.map((link) => (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium
-                           bg-navy-400 border border-white/[0.08]
-                           text-slate-300 hover:text-white hover:bg-navy-300
-                           transition-colors"
-              >
-                {link.label} ↗
-              </a>
-            ))}
-          </div>
-        )}
       </div>
+
+      {saveError && <p className="text-xs text-coral-400">{saveError}</p>}
+
+      {expanded && (
+        <div className="flex flex-wrap gap-2">
+          {rec.search_links.map((link) => (
+            <a
+              key={link.label}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium
+                         bg-navy-400 border border-white/[0.08]
+                         text-slate-300 hover:text-white hover:bg-navy-300
+                         transition-colors"
+            >
+              {link.label} ↗
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

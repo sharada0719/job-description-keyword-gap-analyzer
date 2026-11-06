@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useLocation, Link } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { jobSearchApi } from '../api/jobSearch.js'
+import { applicationsApi } from '../api/applications.js'
 import { useResumes } from '../hooks/useResumes.js'
 import { analysisApi } from '../api/analysis.js'
 import Spinner from '../components/common/Spinner.jsx'
@@ -37,9 +38,30 @@ function BoardCard({ board }) {
 }
 
 function RoleCard({ rec, expanded, onToggle }) {
+  const [saveState, setSaveState] = useState('idle')
+  const [saveError, setSaveError] = useState('')
   const scoreColor =
     rec.score >= 0.7 ? 'text-emerald-400' :
     rec.score >= 0.4 ? 'text-amber-400' : 'text-slate-400'
+
+  async function handleSave() {
+    setSaveState('saving')
+    setSaveError('')
+    try {
+      await applicationsApi.create({
+        job_title:       rec.title,
+        job_description: rec.description,
+      })
+      setSaveState('saved')
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        setSaveState('saved')
+      } else {
+        setSaveError(err?.response?.data?.message || 'Failed to save.')
+        setSaveState('error')
+      }
+    }
+  }
 
   return (
     <div className="bg-navy-500 border border-white/[0.07] rounded-xl p-4 space-y-3 hover:border-white/[0.12] transition-colors">
@@ -62,25 +84,43 @@ function RoleCard({ rec, expanded, onToggle }) {
           ))}
         </div>
       )}
-      <div>
+      {/* Save + search links */}
+      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.05]">
+        <button
+          onClick={handleSave}
+          disabled={saveState === 'saving' || saveState === 'saved'}
+          className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${
+            saveState === 'saved'
+              ? 'bg-emerald-500/15 text-emerald-400 cursor-default'
+              : saveState === 'error'
+              ? 'bg-coral-500/15 text-coral-400 hover:bg-coral-500/25'
+              : 'bg-navy-400 text-slate-300 hover:text-white hover:bg-navy-300'
+          }`}
+        >
+          {saveState === 'saving' ? <Spinner size="sm" /> :
+           saveState === 'saved'  ? '✓ Saved to Tracker' :
+           saveState === 'error'  ? '⚠ Try again' :
+           '📋 Save to Tracker'}
+        </button>
         <button
           onClick={() => onToggle(rec.title)}
           className="text-xs text-primary-400 hover:text-primary-300"
           aria-expanded={expanded}
         >
-          {expanded ? '▲ Hide search links' : '▼ Find on job boards'}
+          {expanded ? '▲ Hide' : '▼ Job boards'}
         </button>
-        {expanded && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {rec.search_links.map((link) => (
-              <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-navy-400 border border-white/[0.08] text-slate-300 hover:text-white hover:bg-navy-300 transition-colors">
-                {link.label} ↗
-              </a>
-            ))}
-          </div>
-        )}
       </div>
+      {saveError && <p className="text-xs text-coral-400">{saveError}</p>}
+      {expanded && (
+        <div className="flex flex-wrap gap-2">
+          {rec.search_links.map((link) => (
+            <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-navy-400 border border-white/[0.08] text-slate-300 hover:text-white hover:bg-navy-300 transition-colors">
+              {link.label} ↗
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -102,7 +142,6 @@ export default function JobSearchPage() {
   const [results, setResults]     = useState(null)
   const [loading, setLoading]     = useState(false)
   const [error,   setError]      = useState('')
-  const [hasSearched, setHasSearched] = useState(false)
 
   // ── Resume selection for matching (optional)
   const { resumes } = useResumes()
@@ -133,7 +172,6 @@ export default function JobSearchPage() {
     e?.preventDefault()
     setLoading(true)
     setError('')
-    setHasSearched(true)
     try {
       const data = await jobSearchApi.search({
         query:          query.trim(),
@@ -318,7 +356,7 @@ export default function JobSearchPage() {
               </div>
               <p className="text-xs text-slate-500">
                 Click any board to see real, live search results for your query.
-                These links open the board's own search page — no listings are fabricated.
+                These links open the board&apos;s own search page — no listings are fabricated.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {results.board_results.map((b) => (

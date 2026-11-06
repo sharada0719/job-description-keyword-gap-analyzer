@@ -1,4 +1,3 @@
-import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
 import ProtectedRoute from './components/common/ProtectedRoute.jsx'
@@ -14,6 +13,8 @@ import NewAnalysisPage from './pages/NewAnalysisPage.jsx'
 import AnalysisDetailPage from './pages/AnalysisDetailPage.jsx'
 import AnalysisHistoryPage from './pages/AnalysisHistoryPage.jsx'
 import JobSearchPage from './pages/JobSearchPage.jsx'
+import ApplicationTrackerPage from './pages/ApplicationTrackerPage.jsx'
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 
@@ -22,8 +23,9 @@ export default function App() {
     <AuthProvider>
       <Routes>
         {/* Public routes */}
-        <Route path="/login"    element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/login"          element={<LoginPage />} />
+        <Route path="/register"       element={<RegisterPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Protected routes wrapped in MainLayout */}
         <Route element={<ProtectedRoute />}>
@@ -36,6 +38,7 @@ export default function App() {
             <Route path="/analysis"                 element={<AnalysisHistoryPage />} />
             <Route path="/analysis/:id"             element={<AnalysisDetailPage />} />
             <Route path="/jobs/search"               element={<JobSearchPage />} />
+            <Route path="/applications"               element={<ApplicationTrackerPage />} />
             <Route path="/profile"                  element={<ProfilePage />} />
           </Route>
         </Route>

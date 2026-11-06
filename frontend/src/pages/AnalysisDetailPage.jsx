@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAnalysisDetail } from '../hooks/useAnalysis.js'
 import { analysisApi } from '../api/analysis.js'
+import { jobsApi } from '../api/jobs.js'
 import Spinner from '../components/common/Spinner.jsx'
 import Alert from '../components/common/Alert.jsx'
 import ScoreSummaryCard from '../components/analysis/ScoreSummaryCard.jsx'
@@ -10,11 +11,12 @@ import SuggestionList from '../components/analysis/SuggestionList.jsx'
 import AtsReportCard from '../components/analysis/AtsReportCard.jsx'
 import AtsSuccessModal from '../components/analysis/AtsSuccessModal.jsx'
 import JobRecommendations from '../components/analysis/JobRecommendations.jsx'
+import CoverLetterModal from '../components/analysis/CoverLetterModal.jsx'
 import ScoreRadarChart from '../components/charts/ScoreRadarChart.jsx'
 import KeywordBarChart from '../components/charts/KeywordBarChart.jsx'
 import { formatDate } from '../utils/formatters.js'
 
-const TABS = ['Overview', 'Skills', 'ATS', 'Suggestions', 'Roles']
+const TABS = ['Overview', 'Skills', 'ATS', 'Suggestions', 'Roles', 'Cover Letter']
 
 export default function AnalysisDetailPage() {
   const { id }   = useParams()
@@ -23,6 +25,8 @@ export default function AnalysisDetailPage() {
 
   const [activeTab,    setActiveTab]    = useState('Overview')
   const [showAtsModal, setShowAtsModal] = useState(false)
+  const [showCoverLetter, setShowCoverLetter] = useState(false)
+  const [jobDetails,   setJobDetails]   = useState(null)
 
   // Show ATS success popup once per analysis per session
   useEffect(() => {
@@ -32,6 +36,12 @@ export default function AnalysisDetailPage() {
       setShowAtsModal(true)
     }
   }, [analysis])
+
+  // Fetch job description details for the Cover Letter tab
+  useEffect(() => {
+    if (activeTab !== 'Cover Letter' || !analysis?.job_description_id || jobDetails) return
+    jobsApi.get(analysis.job_description_id).then(setJobDetails).catch(() => {})
+  }, [activeTab, analysis]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function closeAtsModal() {
     setShowAtsModal(false)
@@ -193,12 +203,66 @@ export default function AnalysisDetailPage() {
         </div>
       )}
 
+      {/* ── Cover Letter ─────────────────────────────────────────────────── */}
+      {activeTab === 'Cover Letter' && (
+        <div className="card space-y-6">
+          <div>
+            <h3 className="section-title">AI Cover Letter Generator</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Generate a personalized cover letter using Google Gemini AI. The
+              letter is based on your actual resume and the job description from
+              this analysis — no qualifications are invented.
+            </p>
+          </div>
+
+          {/* Job context preview */}
+          <div className="rounded-xl bg-navy-500 border border-white/[0.07] p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-500 text-xs">Job Title:</span>
+              <span className="text-white font-medium">{jobDetails?.title || 'Loading…'}</span>
+            </div>
+            {jobDetails?.company && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-slate-500 text-xs">Company:</span>
+                <span className="text-white font-medium">{jobDetails.company}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-500 text-xs">Resume:</span>
+              <span className="text-white font-medium">#{analysis.resume_id}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={() => setShowCoverLetter(true)}
+              className="btn-gradient py-3 px-6"
+            >
+              ✉️ Generate Cover Letter
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 text-center -mt-3">
+            Powered by Google Gemini AI · Requires GEMINI_API_KEY in backend .env
+          </p>
+        </div>
+      )}
+
       {/* ATS success popup */}
       <AtsSuccessModal
         open={showAtsModal}
         atsReport={ats}
         jobMatchScore={analysis.overall_score}
         onClose={closeAtsModal}
+      />
+
+      {/* Cover Letter modal */}
+      <CoverLetterModal
+        open={showCoverLetter}
+        resumeId={analysis.resume_id}
+        jobDescriptionId={analysis.job_description_id}
+        jobTitle={jobDetails?.title || ''}
+        companyName={jobDetails?.company || ''}
+        onClose={() => setShowCoverLetter(false)}
       />
     </div>
   )

@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { to: '/resumes',      label: 'My Resumes',      icon: '📄' },
   { to: '/jobs',         label: 'Job Listings',    icon: '💼' },
   { to: '/jobs/search',  label: 'Job Search',       icon: '🔍' },
+  { to: '/applications', label: 'Application Tracker', icon: '📋' },
   { to: '/analysis/new', label: 'New Analysis',    icon: '⚡' },
   { to: '/analysis',     label: 'History',         icon: '📊' },
   { to: '/profile',      label: 'Profile',         icon: '👤' },
@@ -54,11 +55,11 @@ function SidebarContent({ onNavClick }) {
       {/* Brand */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/[0.06]">
         <div className="w-9 h-9 rounded-xl bg-gradient-purple flex items-center justify-center text-lg shadow-purple flex-shrink-0">
-          🔍
+          📄
         </div>
-        <div>
-          <span className="text-white font-bold text-sm leading-none">CareerLens</span>
-          <span className="block text-[10px] text-primary-400 font-medium mt-0.5">AI Platform</span>
+        <div className="min-w-0">
+          <span className="text-white font-bold text-xs leading-tight block truncate">JD Keyword Gap</span>
+          <span className="block text-[10px] text-primary-400 font-medium mt-0.5">Analyzer</span>
         </div>
       </div>
 

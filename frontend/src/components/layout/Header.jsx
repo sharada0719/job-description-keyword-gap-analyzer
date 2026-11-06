@@ -19,8 +19,7 @@ export default function Header({ onMenuClick }) {
 
       {/* Mobile brand */}
       <div className="flex lg:hidden items-center gap-2">
-        <span className="text-white font-bold text-sm">CareerLens</span>
-        <span className="text-primary-400 font-medium text-xs">AI</span>
+        <span className="text-white font-bold text-sm">JD Gap Analyzer</span>
       </div>
 
       <div className="flex-1" />
