@@ -107,6 +107,28 @@ class Settings(BaseSettings):
     # surfaced to the frontend via the analysis report, not hard-coded there.
     ATS_COMPATIBILITY_THRESHOLD: float = 0.80
 
+    # ── Gemini AI (Cover Letter Generator) ────────────────────────────────
+    # Required for the cover letter feature. Get a key at
+    # https://aistudio.google.com/apikey
+    GEMINI_API_KEY: str = ""
+    # Gemini Flash model for fast, cost-effective text generation.
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
+    # ── Email / SMTP (Forgot Password) ───────────────────────────────────
+    # Set these to enable the Forgot Password email feature.
+    # If SMTP_HOST is empty, the backend returns 503 instead of sending email.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "Job Description Keyword Gap Analyzer"
+    SMTP_TLS: bool = True
+    # How long (minutes) a password-reset token is valid.
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    # Frontend base URL — used to build the reset link in the email.
+    FRONTEND_BASE_URL: str = "http://localhost:5173"
+
     # ── Logging ───────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "logs"

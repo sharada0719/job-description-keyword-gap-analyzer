@@ -10,6 +10,8 @@ from app.api.v1.endpoints.jobs import router as jobs_router
 from app.api.v1.endpoints.analysis import router as analysis_router
 from app.api.v1.endpoints.recommendations import router as recommendations_router
 from app.api.v1.endpoints.job_search import router as job_search_router
+from app.api.v1.endpoints.cover_letter import router as cover_letter_router
+from app.api.v1.endpoints.applications import router as applications_router
 
 api_router = APIRouter()
 
@@ -20,3 +22,5 @@ api_router.include_router(jobs_router)
 api_router.include_router(analysis_router)
 api_router.include_router(recommendations_router)
 api_router.include_router(job_search_router)
+api_router.include_router(cover_letter_router)
+api_router.include_router(applications_router)

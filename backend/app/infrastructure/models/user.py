@@ -29,6 +29,9 @@ class UserModel(Base, TimestampMixin):
     analyses: Mapped[List["AnalysisModel"]] = relationship(
         "AnalysisModel", back_populates="user", cascade="all, delete-orphan"
     )
+    job_applications: Mapped[List["JobApplicationModel"]] = relationship(
+        "JobApplicationModel", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"
