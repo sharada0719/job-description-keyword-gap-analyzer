@@ -28,21 +28,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.APP_VERSION,
         settings.ENVIRONMENT,
     )
-    # Pre-load AI models in background on startup so the first request is fast.
-    # Wrapped in try/except so a missing model doesn't block the whole server.
-    try:
-        from app.infrastructure.ai.nlp_engine import (
-            get_keybert_model,
-            get_sentence_model,
-            get_spacy_nlp,
-        )
-        get_spacy_nlp()
-        get_sentence_model()
-        get_keybert_model()
-        logger.info("AI models loaded successfully.")
-    except Exception as exc:
-        logger.warning("AI model pre-load skipped: %s", exc)
-
+    # AI models are loaded lazily when required by an API request.
+    # This keeps application startup lightweight for Render Free.
+    logger.info("AI models will be loaded on demand.")
     yield
 
     logger.info("Application shutdown.")

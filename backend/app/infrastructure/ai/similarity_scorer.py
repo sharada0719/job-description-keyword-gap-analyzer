@@ -129,13 +129,13 @@ def match_keywords(
     encoder = model if model is not None else get_sentence_model()
     resume_emb = encoder.encode(
         resume_kw,
-        batch_size=64,
+        batch_size=8,
         show_progress_bar=False,
         normalize_embeddings=True,
     )
     job_emb = encoder.encode(
         job_kw,
-        batch_size=64,
+        batch_size=8,
         show_progress_bar=False,
         normalize_embeddings=True,
     )
