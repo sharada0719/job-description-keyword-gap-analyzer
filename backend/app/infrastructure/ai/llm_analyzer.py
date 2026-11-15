@@ -143,6 +143,7 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
             json={
                 "model": model,
                 "temperature": 0,
+                "max_tokens": 3000,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
@@ -183,7 +184,8 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
         raise AIServiceError(
             f"Groq API returned HTTP {response.status_code}: {detail}"
         )
-    return response.json()["choices"][0]["message"]["content"]
+    message = response.json()["choices"][0]["message"]
+    return message.get("content") or message.get("reasoning_content") or ""
 
 
 def generate_hosted_text(prompt: str, system_prompt: str) -> str:
@@ -226,9 +228,21 @@ async def analyze_resume_and_job(resume_text: str, job_text: str) -> Dict[str, A
         # Some Groq models reject response_format=json_object. The prompt still
         # requires JSON, and this accepts either plain JSON or a fenced block.
         cleaned = raw.strip()
+        if not cleaned:
+            raise AIServiceError("Groq returned an empty response. Try again.")
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        payload = json.loads(cleaned)
+        try:
+            payload = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Recover a JSON object when the model adds a short explanation.
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
+            if start < 0 or end <= start:
+                raise AIServiceError(
+                    "Groq returned an invalid analysis response. Please try again."
+                )
+            payload = json.loads(cleaned[start : end + 1])
         if not isinstance(payload, dict):
             raise ValueError("LLM response was not a JSON object")
         return _normalise_result(payload)
