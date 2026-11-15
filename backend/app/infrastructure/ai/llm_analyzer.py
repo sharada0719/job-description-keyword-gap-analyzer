@@ -143,7 +143,6 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
             json={
                 "model": model,
                 "temperature": 0,
-                "response_format": {"type": "json_object"},
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
@@ -224,7 +223,12 @@ async def analyze_resume_and_job(resume_text: str, job_text: str) -> Dict[str, A
     )
     try:
         raw = await asyncio.to_thread(_gemini_call if settings.AI_PROVIDER == "gemini" else _groq_call, prompt)
-        payload = json.loads(raw)
+        # Some Groq models reject response_format=json_object. The prompt still
+        # requires JSON, and this accepts either plain JSON or a fenced block.
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        payload = json.loads(cleaned)
         if not isinstance(payload, dict):
             raise ValueError("LLM response was not a JSON object")
         return _normalise_result(payload)
