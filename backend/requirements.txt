@@ -22,7 +22,9 @@ python-dotenv==1.0.1
 spacy==3.7.5
 # After install run: python -m spacy download en_core_web_sm
 sentence-transformers==3.0.1
-torch==2.13.0+cpu
+# The +cpu build is hosted on a separate index and is unavailable to Render's
+# default PyPI resolver. This PyPI release supports Python 3.12.
+torch==2.2.2
 keybert==0.8.5
 numpy==1.26.4
 
