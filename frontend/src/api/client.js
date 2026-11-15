@@ -2,7 +2,7 @@
  * Configured Axios instance.
  *
  * - Base URL: VITE_API_URL env var, or '/api/v1' (picked up by the Vite proxy
- *   in dev and by the Nginx proxy in Docker production).
+ *   in development through the Vite proxy).
  * - Attaches the JWT access token to every request automatically.
  * - On 401: attempts a silent token refresh once using the stored refresh
  *   token. If the refresh succeeds, the original request is retried with the

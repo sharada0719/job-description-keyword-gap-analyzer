@@ -67,10 +67,6 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# ── Docker ────────────────────────────────────────────────────────────────────
-# Keep docker-compose.yml tracked; ignore override files
-docker-compose.override.yml
-
 # ── Alembic ───────────────────────────────────────────────────────────────────
 # Track migrations but ignore compiled files
 alembic/versions/__pycache__/

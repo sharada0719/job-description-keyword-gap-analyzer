@@ -32,7 +32,7 @@ Upload your resume, paste a job description, and instantly discover which keywor
 | Auth        | JWT (python-jose), bcrypt (passlib)               |
 | AI / NLP    | spaCy, KeyBERT, sentence-transformers, numpy      |
 | Parsing     | pdfplumber, python-docx                           |
-| Deployment  | Docker, Docker Compose, Nginx                     |
+| Development | Vite dev server and Uvicorn                        |
 
 ---
 
@@ -69,51 +69,58 @@ job-gap-analyzer/
 │   │   ├── hooks/              # Data-fetching hooks
 │   │   ├── pages/              # Route-level page components
 │   │   └── utils/              # Formatters, validators
-│   ├── nginx.conf
 │   └── package.json
-├── docker-compose.yml
 └── README.md
 ```
 
 ---
 
-## Quick Start (Docker — recommended)
+## Quick Start
 
 ### Prerequisites
-- Docker Desktop ≥ 4.x
-- Docker Compose V2
+- Python 3.12
+- Node.js 20+
+- npm
 
-### 1. Clone and configure
+### 1. Configure the backend
 
 ```bash
-git clone <repo-url>
 cd job-gap-analyzer
 
-cp backend/.env.example backend/.env
-# Edit backend/.env — set SECRET_KEY (SQLITE_PATH defaults to ./jobgap.db)
+cd backend
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+copy .env.example .env             # Windows
+# cp .env.example .env             # macOS/Linux
+# Edit .env and set SECRET_KEY
+alembic upgrade head
 ```
 
-### 2. Build and run
+### 2. Start the backend
 
 ```bash
-docker compose up --build
+uvicorn app.main:app --reload --port 8000
 ```
 
-Services started:
-- Frontend → http://localhost:80
-- Backend API → http://localhost:8000
-- API docs → http://localhost:8000/api/v1/docs
+The API and docs are available at:
+- API: http://localhost:8000
+- Docs: http://localhost:8000/api/v1/docs
 
-### 3. Stop
+### 3. Start the frontend in a second terminal
 
 ```bash
-docker compose down
-# To remove volumes (database): docker compose down -v
+cd frontend
+npm install
+npm run dev
 ```
+
+The frontend is available at http://localhost:5173. Vite proxies `/api` requests to the local backend on port 8000.
 
 ---
 
-## Local Development (without Docker)
+## Local Development
 
 ### Backend
 
@@ -133,8 +140,9 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
 # Configure environment
-cp .env.example .env
-# Edit .env with your local database credentials
+copy .env.example .env             # Windows
+# cp .env.example .env             # macOS/Linux
+# Edit .env with your local settings
 
 # Run database migrations
 alembic upgrade head
