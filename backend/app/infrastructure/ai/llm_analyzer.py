@@ -137,22 +137,28 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
     endpoint = "https://api.groq.com/openai/v1/chat/completions"
 
     def request(model: str) -> httpx.Response:
+        request_body = {
+            "model": model,
+            "temperature": 0,
+            "max_tokens": 3000,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        # Groq reasoning models can put the whole response in a hidden channel.
+        # Ask them to return the requested JSON in the normal content channel.
+        if model.startswith("openai/"):
+            request_body["reasoning_format"] = "hidden"
         return httpx.post(
             endpoint,
             headers=headers,
-            json={
-                "model": model,
-                "temperature": 0,
-                "max_tokens": 3000,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-            },
+            json=request_body,
             timeout=120,
         )
 
-    response = request(settings.GROQ_MODEL)
+    active_model = settings.GROQ_MODEL
+    response = request(active_model)
     if response.status_code == 404:
         # Model availability varies by account and changes over time. Discover
         # an allowed chat model instead of failing on a stale configured ID.
@@ -177,6 +183,7 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
             fallback = next((model for model in candidates if model in available), None)
             if fallback:
                 logger.warning("Groq model '%s' unavailable; using '%s'", settings.GROQ_MODEL, fallback)
+                active_model = fallback
                 response = request(fallback)
         
     if response.is_error:
@@ -185,7 +192,14 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
             f"Groq API returned HTTP {response.status_code}: {detail}"
         )
     message = response.json()["choices"][0]["message"]
-    return message.get("content") or message.get("reasoning_content") or ""
+    content = message.get("content")
+    if not content and message.get("reasoning_content"):
+        # A reasoning-only response is not a valid analysis payload. Retry with
+        # hidden reasoning before reporting an empty response to the user.
+        retry = request(active_model)
+        if retry.is_success:
+            content = retry.json()["choices"][0]["message"].get("content")
+    return content or ""
 
 
 def generate_hosted_text(prompt: str, system_prompt: str) -> str:
