@@ -14,11 +14,7 @@ from app.application.dtos.analysis import (
 )
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
-from app.infrastructure.ai.keyword_extractor import extract_keywords
-from app.infrastructure.ai.similarity_scorer import (
-    document_similarity,
-    match_keywords,
-)
+from app.infrastructure.ai.llm_analyzer import analyze_resume_and_job
 from app.infrastructure.ai.skill_taxonomy import normalize_keyword
 from app.infrastructure.ats.ats_scorer import score_ats_compatibility
 from app.infrastructure.models.analysis import AnalysisModel
@@ -184,36 +180,20 @@ class AnalysisService:
             jd.id,
         )
 
-        # ── 2. Extract keywords ───────────────────────────────────────────────
-        logger.info("STEP A - Extracting resume keywords")
-        resume_keywords = extract_keywords(resume.raw_text)
-
-        logger.info("STEP B - Resume keywords extracted")
-
-        logger.info("STEP C - Extracting JD keywords")
-        job_keywords = extract_keywords(jd.raw_text)
-
-        logger.info("STEP D - JD keywords extracted")
+        # ── 2. Hosted AI analysis ────────────────────────────────────────────
+        logger.info("STEP A - Analyzing resume and job description with hosted AI")
+        ai_result = await analyze_resume_and_job(resume.raw_text, jd.raw_text)
+        resume_keywords = ai_result["resume_keywords"]
+        job_keywords = ai_result["job_keywords"]
 
         # ── 3. Detect required vs preferred skills (when the JD signals it) ───
         requirement_levels = _detect_requirement_levels(jd.raw_text, job_keywords)
 
-        # ── 4. Score ──────────────────────────────────────────────────────────
-        logger.info("STEP E - Calculating semantic similarity")
-        sem_score = document_similarity(resume.raw_text, jd.raw_text)
-        logger.info("STEP F - Semantic similarity done")
-
-        logger.info("STEP G - Matching keywords")
-        match_result = match_keywords(
-            resume_keywords,
-            job_keywords,
-            resume_text=resume.raw_text,
-        )
-        logger.info("STEP H - Keyword matching done")
-
-        matched_records = match_result["matched"]
-        missing_records = match_result["missing"]
-        kw_score = match_result["score"]
+        # ── 4. Normalize hosted AI scores ────────────────────────────────────
+        sem_score = ai_result["semantic_similarity"]
+        matched_records = ai_result["matched"]
+        missing_records = ai_result["missing"]
+        kw_score = ai_result["keyword_score"]
 
         # Attach requirement level to each matched keyword for explainability.
         for m in matched_records:

@@ -139,11 +139,12 @@ class Settings(BaseSettings):
     def ALLOWED_EXTENSIONS_LIST(self) -> list:
         return [e.strip() for e in self.ALLOWED_EXTENSIONS.split(",") if e.strip()]
 
-    # - NLP / AI -
-    SPACY_MODEL: str = "en_core_web_sm"
-    SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
-    KEYBERT_TOP_N: int = 20
-    # Min embedding similarity to count a keyword as a strong (semantic) match.
+    # - Hosted AI -
+    AI_PROVIDER: str = "gemini"
+    AI_ANALYSIS_MODEL: str = "gemini-2.0-flash"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    # Thresholds remain configurable for the normalized LLM match scores.
     SIMILARITY_THRESHOLD: float = 0.75
     # Min embedding similarity for the "uncertain" match band. Matches at or
     # above this value but below SIMILARITY_THRESHOLD are reported as uncertain
@@ -155,11 +156,11 @@ class Settings(BaseSettings):
     # surfaced to the frontend via the analysis report, not hard-coded there.
     ATS_COMPATIBILITY_THRESHOLD: float = 0.80
 
-    # - Gemini AI (Cover Letter Generator) -
-    # Required for the cover letter feature. Get a key at
+    # - Gemini AI -
+    # Used for analysis and cover letters when AI_PROVIDER=gemini.
     # https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = ""
-    # Gemini Flash model for fast, cost-effective text generation.
+    # Cover letters use this model; analysis uses AI_ANALYSIS_MODEL.
     GEMINI_MODEL: str = "gemini-2.0-flash"
 
     # - Email / SMTP (Forgot Password) -

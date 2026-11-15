@@ -18,17 +18,7 @@ pydantic[email]==2.8.2
 pydantic-settings==2.3.4
 python-dotenv==1.0.1
 
-# ── AI / NLP ──────────────────────────────────────────────────────────────────
-spacy==3.7.5
-# After install run: python -m spacy download en_core_web_sm
-sentence-transformers==3.0.1
-# Install the CPU-only wheel from the PyTorch index in Render's build command.
-# Keeping Torch out of this file prevents pip from replacing it with the large
-# CUDA-enabled PyPI distribution.
-keybert==0.8.5
-numpy==1.26.4
-
-# ── Google Gemini AI (Cover Letter Generator) ─────────────────────────────────
+# ── Hosted AI ─────────────────────────────────────────────────────────────────
 google-genai==1.0.0
 
 # ── File Parsing ──────────────────────────────────────────────────────────────

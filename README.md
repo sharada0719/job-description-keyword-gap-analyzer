@@ -10,8 +10,7 @@ Upload your resume, paste a job description, and instantly discover which keywor
 - **JWT Authentication** — register, login, token refresh
 - **Resume Upload** — PDF and DOCX parsing with `pdfplumber` and `python-docx`
 - **Job Description Management** — save and reuse job postings
-- **AI Keyword Extraction** — `KeyBERT` with 1–2 gram keyphrases + curated technical-skill scan that preserves `C++`, `C#`, `.NET`, `Node.js`, `CI/CD`, `REST APIs`, `SQL`, `JavaScript`, etc.
-- **Semantic Similarity** — `sentence-transformers` (all-MiniLM-L6-v2) cosine scoring
+- **AI Keyword Extraction and Semantic Similarity** — hosted Gemini or Groq analysis; no local NLP model download is required
 - **Gap Analysis** — matched / missing keywords, composite score, suggestions
 - **Improved Skill Matching** — exact/alias matching with confusable-technology guards (Java ≠ JavaScript, React ≠ Vue) and an "uncertain" band. Match types and evidence snippets are returned.
 - **ATS Compatibility Score** — independent, text-based ATS analysis with 5 transparent checks, warnings, and recommendations. Score is **not** derived from the job-match score.
@@ -30,7 +29,7 @@ Upload your resume, paste a job description, and instantly discover which keywor
 | Backend     | FastAPI, Python 3.12, Uvicorn                     |
 | Database    | SQLite (via aiosqlite), SQLAlchemy 2 (async), Alembic |
 | Auth        | JWT (python-jose), bcrypt (passlib)               |
-| AI / NLP    | spaCy, KeyBERT, sentence-transformers, numpy      |
+| AI          | Google Gemini or Groq API                        |
 | Parsing     | pdfplumber, python-docx                           |
 | Development | Vite dev server and Uvicorn                        |
 
@@ -91,7 +90,6 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
 copy .env.example .env             # Windows
 # cp .env.example .env             # macOS/Linux
 # Edit .env and set SECRET_KEY
@@ -135,9 +133,6 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Download spaCy model
-python -m spacy download en_core_web_sm
 
 # Configure environment
 copy .env.example .env             # Windows
@@ -215,7 +210,6 @@ See `backend/.env.example` for the full reference. Key variables:
 | `SECRET_KEY`                 | —                | JWT signing key (required)         |
 | `SQLITE_PATH`                | `./jobgap.db`    | Path to the SQLite database file   |
 | `SIMILARITY_THRESHOLD`       | `0.75`           | Min score to count a keyword match |
-| `KEYBERT_TOP_N`              | `20`             | Keywords to extract per document   |
 | `ACCESS_TOKEN_EXPIRE_MINUTES`| `60`             | Access token lifetime              |
 | `LOG_LEVEL`                  | `INFO`           | Logging verbosity                  |
 
