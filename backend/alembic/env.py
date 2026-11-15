@@ -29,7 +29,12 @@ _is_sqlite = settings.SYNC_DATABASE_URL.startswith("sqlite")
 config = context.config
 
 # Override the URL programmatically so we never rely on alembic.ini having it
-config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
+# ConfigParser treats percent signs as interpolation markers. Database
+# passwords may legitimately contain percent-encoded characters.
+config.set_main_option(
+    "sqlalchemy.url",
+    settings.SYNC_DATABASE_URL.replace("%", "%%"),
+)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
