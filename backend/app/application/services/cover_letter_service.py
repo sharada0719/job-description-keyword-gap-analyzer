@@ -7,19 +7,12 @@ real experience from the resume to the job requirements.
 """
 from __future__ import annotations
 
-from app.core.config import settings
 from app.core.exceptions import AIServiceError, ValidationError
 from app.core.logging import get_logger
+from app.infrastructure.ai.llm_analyzer import generate_hosted_text
+from app.core.config import settings
 
 logger = get_logger("services.cover_letter")
-
-# ── Module-level import for testability ──────────────────────────────────────
-# google-genai is a required dependency for this feature. The module-level
-# import makes the client mockable in tests.
-try:
-    from google import genai
-except ImportError:  # pragma: no cover
-    genai = None  # type: ignore[assignment]
 
 # ── Prompt template ──────────────────────────────────────────────────────────
 
@@ -96,35 +89,16 @@ def generate_cover_letter(
     if not job_description or not job_description.strip():
         raise ValidationError("Job description is required to generate a cover letter.")
 
-    # ── Check API key ──────────────────────────────────────────────────────
-    api_key = settings.GEMINI_API_KEY
-    if not api_key or not api_key.strip():
-        raise ValidationError(
-            "Gemini API key is not configured. Set GEMINI_API_KEY in the "
-            "backend .env file. Get a key at https://aistudio.google.com/apikey"
-        )
-
-    # ── Call Gemini ────────────────────────────────────────────────────────
+    # ── Call configured hosted provider ───────────────────────────────────
     try:
-        if genai is None:
-            raise AIServiceError(
-                "google-genai package is not installed. Run: pip install google-genai"
-            )
-
-        client = genai.Client(api_key=api_key)
         prompt = _build_prompt(resume_text, job_title, company_name, job_description)
 
         logger.info(
-            "Generating cover letter: job_title='%s' company='%s' model='%s'",
-            job_title, company_name or "(none)", settings.GEMINI_MODEL,
+            "Generating cover letter: provider='%s' job_title='%s' company='%s'",
+            settings.AI_PROVIDER, job_title, company_name or "(none)",
         )
 
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-        )
-
-        cover_letter = response.text
+        cover_letter = generate_hosted_text(prompt, _SYSTEM_INSTRUCTION)
 
         if not cover_letter or not cover_letter.strip():
             raise AIServiceError(
@@ -137,7 +111,7 @@ def generate_cover_letter(
     except (ValidationError, AIServiceError):
         raise
     except Exception as exc:
-        logger.error("Gemini API call failed: %s", exc)
+        logger.error("Hosted cover letter call failed: %s", exc)
         raise AIServiceError(
             f"Failed to generate cover letter: {exc}"
         ) from exc

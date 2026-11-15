@@ -121,18 +121,18 @@ def _normalise_result(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _gemini_call(prompt: str) -> str:
+def _gemini_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
     from google import genai
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     response = client.models.generate_content(
         model=settings.AI_ANALYSIS_MODEL,
         contents=prompt,
-        config={"system_instruction": _SYSTEM_PROMPT, "response_mime_type": "application/json"},
+        config={"system_instruction": system_prompt, "response_mime_type": "application/json"},
     )
     return response.text or ""
 
 
-def _groq_call(prompt: str) -> str:
+def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
     response = httpx.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
@@ -141,7 +141,7 @@ def _groq_call(prompt: str) -> str:
             "temperature": 0,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt},
             ],
         },
@@ -149,6 +149,27 @@ def _groq_call(prompt: str) -> str:
     )
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
+
+
+def generate_hosted_text(prompt: str, system_prompt: str) -> str:
+    """Generate text through the configured Gemini or Groq provider."""
+    if settings.AI_PROVIDER == "gemini" and not settings.GEMINI_API_KEY.strip():
+        raise ValidationError("GEMINI_API_KEY is not configured in the backend environment.")
+    if settings.AI_PROVIDER == "groq" and not settings.GROQ_API_KEY.strip():
+        raise ValidationError("GROQ_API_KEY is not configured in the backend environment.")
+    if settings.AI_PROVIDER not in {"gemini", "groq"}:
+        raise ValidationError("AI_PROVIDER must be either gemini or groq.")
+    try:
+        caller = _gemini_call if settings.AI_PROVIDER == "gemini" else _groq_call
+        text = caller(prompt, system_prompt)
+        if not text.strip():
+            raise AIServiceError("Hosted AI returned an empty response.")
+        return text.strip()
+    except (ValidationError, AIServiceError):
+        raise
+    except Exception as exc:
+        logger.exception("Hosted text generation failed")
+        raise AIServiceError(f"{settings.AI_PROVIDER.title()} text generation failed: {exc}") from exc
 
 
 async def analyze_resume_and_job(resume_text: str, job_text: str) -> Dict[str, Any]:
