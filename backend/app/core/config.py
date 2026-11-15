@@ -16,36 +16,74 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # ── Application ──────────────────────────────────────────────
+    # - Application -
     APP_NAME: str = "Job Gap Analyzer"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
 
-    # ── API ──────────────────────────────────────────────────────
+    # - API -
     API_V1_PREFIX: str = "/api/v1"
 
-    # ── Security ─────────────────────────────────────────────────
+    # - Security -
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ── Database (SQLite) ─────────────────────────────────────────
+    # - Database -
+    # If DATABASE_URL is set (e.g. on Render with PostgreSQL), it overrides
+    # the SQLite path below. Supports both async and sync driver URLs:
+    #   postgresql+asyncpg://...  (async runtime)
+    #   postgresql://...          (sync Alembic - driver inferred)
+    # When empty, falls back to SQLite via SQLITE_PATH.
+    DATABASE_URL: str = ""
+
     # Path to the SQLite file relative to the backend working directory.
+    # Only used when DATABASE_URL is not set (local development).
     SQLITE_PATH: str = "./jobgap.db"
 
+
     @property
-    def DATABASE_URL(self) -> str:
-        """Async URL used by SQLAlchemy at runtime (aiosqlite driver)."""
-        return f"sqlite+aiosqlite:///{self.SQLITE_PATH}"
+    def ASYNC_DATABASE_URL(self) -> str:
+        """Async URL used by SQLAlchemy at runtime."""
+        url = (self.DATABASE_URL or "").strip()
+
+        if not url:
+            return f"sqlite+aiosqlite:///{self.SQLITE_PATH}"
+
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+
+        if url.startswith("postgresql://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+
+        return url
+
+
 
     @property
     def SYNC_DATABASE_URL(self) -> str:
-        """Sync URL used by Alembic migrations (built-in sqlite3 driver)."""
-        return f"sqlite:///{self.SQLITE_PATH}"
+        """Sync URL used by Alembic migrations."""
+        url = (self.DATABASE_URL or "").strip()
 
-    # ── CORS ─────────────────────────────────────────────────────
+        if not url:
+            return f"sqlite:///{self.SQLITE_PATH}"
+
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+
+        if url.startswith("postgresql+asyncpg://"):
+            url = "postgresql://" + url[len("postgresql+asyncpg://"):]
+
+        if url.startswith("sqlite+aiosqlite://"):
+            url = "sqlite://" + url[len("sqlite+aiosqlite://"):]
+
+        return url
+
+
+
+    # - CORS -
     # Accepts comma-separated string from .env: "http://a.com,http://b.com"
     # or a JSON array string: '["http://a.com"]'
     # Declared as str here; converted to List[str] by the validator below.
@@ -69,7 +107,7 @@ class Settings(BaseSettings):
     def CORS_ORIGINS_LIST(self) -> list:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
-    # ── File Upload ───────────────────────────────────────────────
+    # - File Upload -
     MAX_UPLOAD_SIZE_MB: int = 5
     # Comma-separated string: "pdf,docx,doc"
     ALLOWED_EXTENSIONS: str = "pdf,docx,doc"
@@ -91,7 +129,7 @@ class Settings(BaseSettings):
     def ALLOWED_EXTENSIONS_LIST(self) -> list:
         return [e.strip() for e in self.ALLOWED_EXTENSIONS.split(",") if e.strip()]
 
-    # ── NLP / AI ─────────────────────────────────────────────────
+    # - NLP / AI -
     SPACY_MODEL: str = "en_core_web_sm"
     SENTENCE_TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
     KEYBERT_TOP_N: int = 20
@@ -101,20 +139,20 @@ class Settings(BaseSettings):
     # above this value but below SIMILARITY_THRESHOLD are reported as uncertain
     # (half weight in the coverage score) rather than missing.
     UNCERTAIN_MATCH_MIN: float = 0.60
-    # ATS compatibility threshold (0–1). The "ATS-friendly" success popup is
+    # ATS compatibility threshold (0-1). The "ATS-friendly" success popup is
     # shown only when the ATS score meets or exceeds this value AND the
-    # required parsing/compatibility checks pass. Single source of truth —
+    # required parsing/compatibility checks pass. Single source of truth -
     # surfaced to the frontend via the analysis report, not hard-coded there.
     ATS_COMPATIBILITY_THRESHOLD: float = 0.80
 
-    # ── Gemini AI (Cover Letter Generator) ────────────────────────────────
+    # - Gemini AI (Cover Letter Generator) -
     # Required for the cover letter feature. Get a key at
     # https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = ""
     # Gemini Flash model for fast, cost-effective text generation.
     GEMINI_MODEL: str = "gemini-2.0-flash"
 
-    # ── Email / SMTP (Forgot Password) ───────────────────────────────────
+    # - Email / SMTP (Forgot Password) -
     # Set these to enable the Forgot Password email feature.
     # If SMTP_HOST is empty, the backend returns 503 instead of sending email.
     SMTP_HOST: str = ""
@@ -126,10 +164,10 @@ class Settings(BaseSettings):
     SMTP_TLS: bool = True
     # How long (minutes) a password-reset token is valid.
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
-    # Frontend base URL — used to build the reset link in the email.
+    # Frontend base URL - used to build the reset link in the email.
     FRONTEND_BASE_URL: str = "http://localhost:5173"
 
-    # ── Logging ───────────────────────────────────────────────────
+    # - Logging -
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "logs"
 

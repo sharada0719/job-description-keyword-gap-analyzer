@@ -16,7 +16,9 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api/v1'
 const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30_000,
+  // NLP analysis can take 60+ seconds on a cold Render free instance.
+  // The proxy also uses a matching 120 second timeout in vite.config.js.
+  timeout: 120_000,
 })
 
 // ── Request interceptor — attach access token ─────────────────────────────────

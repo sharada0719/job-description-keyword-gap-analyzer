@@ -5,7 +5,8 @@ python-multipart==0.0.9
 
 # ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy==2.0.31
-aiosqlite==0.20.0          # async SQLite driver (replaces asyncpg)
+aiosqlite==0.20.0          # async SQLite driver (local development)
+asyncpg==0.29.0            # async PostgreSQL driver (production)
 alembic==1.13.2
 
 # ── Auth & Security ───────────────────────────────────────────────────────────
@@ -36,3 +37,4 @@ python-docx==1.1.2
 httpx==0.27.0
 
 bcrypt==4.0.1
+psycopg2-binary==2.9.10

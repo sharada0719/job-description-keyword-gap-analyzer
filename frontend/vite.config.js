@@ -7,8 +7,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        secure: true,
+        // Increase timeout for heavy NLP analysis requests (Render free tier can
+        // take 60+ seconds for the first request after a cold start).
+        timeout: 120_000,
+        proxyTimeout: 120_000,
       },
     },
   },

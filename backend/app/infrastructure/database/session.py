@@ -1,13 +1,22 @@
 """
-Async SQLAlchemy engine and session factory — SQLite / aiosqlite backend.
+Async SQLAlchemy engine and session factory.
 
-Important SQLite notes:
+Supports both SQLite (via aiosqlite, for local development) and PostgreSQL
+(via asyncpg, for production).  The database backend is determined by the
+DATABASE_URL setting — when it starts with "postgresql", PostgreSQL-specific
+connection pooling is used; otherwise SQLite defaults apply.
+
+SQLite-specific notes:
   • pool_size and max_overflow are not valid for StaticPool / NullPool.
-  • We use check_same_thread=False so the single connection can be shared
-    across async coroutines (aiosqlite handles thread-safety internally).
-  • Foreign key enforcement is OFF by default in SQLite; we enable it via
-    an event listener that runs PRAGMA foreign_keys = ON after each connect.
+  • check_same_thread=False allows the single connection to be shared across
+    async coroutines (aiosqlite handles thread-safety internally).
+  • Foreign key enforcement is OFF by default; enabled via event listener.
   • WAL journal mode gives better concurrent read performance.
+
+PostgreSQL-specific notes:
+  • Standard connection pooling applies (pool_size, max_overflow).
+  • Foreign keys are enforced by default.
+  • No PRAGMA or check_same_thread needed.
 """
 from typing import AsyncGenerator
 
@@ -21,22 +30,34 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    connect_args={"check_same_thread": False},
-)
+# Determine database backend
+_is_sqlite = settings.ASYNC_DATABASE_URL.startswith("sqlite")
+_is_postgres = settings.ASYNC_DATABASE_URL.startswith("postgresql")
+
+# ── Engine ────────────────────────────────────────────────────────────────────
+_engine_kwargs: dict = {
+    "echo": settings.DEBUG,
+}
+
+if _is_sqlite:
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+# PostgreSQL: no special connect_args needed; asyncpg handles pooling natively
+
+engine = create_async_engine(settings.ASYNC_DATABASE_URL, **_engine_kwargs)
 
 
-@event.listens_for(engine.sync_engine, "connect")
-def _set_sqlite_pragmas(dbapi_connection, _connection_record):
-    """Enable foreign keys and WAL mode for every new SQLite connection."""
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys = ON")
-    cursor.execute("PRAGMA journal_mode = WAL")
-    cursor.close()
+# ── SQLite-only PRAGMA event listeners ────────────────────────────────────────
+if _is_sqlite:
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragmas(dbapi_connection, _connection_record):
+        """Enable foreign keys and WAL mode for every new SQLite connection."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.close()
 
 
+# ── Session factory ──────────────────────────────────────────────────────────
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,

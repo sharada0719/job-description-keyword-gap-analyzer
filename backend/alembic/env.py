@@ -1,9 +1,10 @@
 """
-Alembic environment — synchronous SQLite migration runner.
+Alembic environment — synchronous migration runner.
 
-We use the synchronous sqlite:// URL here because Alembic's autogenerate
-and migration execution work best with a synchronous connection, and SQLite
-has no meaningful benefit from async in the migration context.
+Uses the sync database URL from Settings.  When the database is SQLite,
+`render_as_batch=True` is used (required for ALTER TABLE on SQLite which
+cannot ALTER columns in-place).  When PostgreSQL is configured, batch mode
+is disabled (it works but is unnecessary overhead).
 """
 import sys
 import os
@@ -20,6 +21,9 @@ from app.infrastructure.database.base import Base
 
 # Import all models so Alembic autogenerate detects every table
 import app.infrastructure.models  # noqa: F401
+
+# ── Determine database backend ────────────────────────────────────────────────
+_is_sqlite = settings.SYNC_DATABASE_URL.startswith("sqlite")
 
 # ── Alembic config ────────────────────────────────────────────────────────────
 config = context.config
@@ -42,7 +46,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,   # required for ALTER TABLE on SQLite
+        render_as_batch=_is_sqlite,  # batch mode only for SQLite
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -58,12 +62,10 @@ def run_migrations_online() -> None:
         url=settings.SYNC_DATABASE_URL,
     )
     with connectable.connect() as connection:
-        # render_as_batch is mandatory for SQLite because it cannot ALTER
-        # columns in-place — Alembic rewrites the table via a temp copy.
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,
+            render_as_batch=_is_sqlite,  # batch mode only for SQLite
         )
         with context.begin_transaction():
             context.run_migrations()

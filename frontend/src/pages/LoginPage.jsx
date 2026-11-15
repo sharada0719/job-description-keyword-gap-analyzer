@@ -241,8 +241,20 @@ function SignInForm() {
     try {
       await login(email, password)
       navigate('/dashboard', { replace: true })
-    } catch (err) {
-      setApiError(err?.response?.data?.message || err?.response?.data?.detail || 'Invalid email or password.')
+        } catch (err) {
+      console.error('SIGN IN ERROR:', {
+        message: err.message,
+        status: err.response?.status,
+        response: err.response?.data,
+        url: err.config?.url,
+      })
+
+      setApiError(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err.message ||
+        'Something went wrong.'
+      )
     } finally {
       setLoading(false)
     }
@@ -311,6 +323,8 @@ function RegisterForm({ onRegistered }) {
   }
 
   function validate() {
+
+
     const e = {}
     const nameErr  = validateRequired(form.full_name, 'Full name')
     const emailErr = validateEmail(form.email)
