@@ -133,20 +133,52 @@ def _gemini_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
 
 
 def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
-    response = httpx.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
-        json={
-            "model": settings.GROQ_MODEL,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-        },
-        timeout=120,
-    )
+    headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}"}
+    endpoint = "https://api.groq.com/openai/v1/chat/completions"
+
+    def request(model: str) -> httpx.Response:
+        return httpx.post(
+            endpoint,
+            headers=headers,
+            json={
+                "model": model,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+            },
+            timeout=120,
+        )
+
+    response = request(settings.GROQ_MODEL)
+    if response.status_code == 404:
+        # Model availability varies by account and changes over time. Discover
+        # an allowed chat model instead of failing on a stale configured ID.
+        models_response = httpx.get(
+            "https://api.groq.com/openai/v1/models",
+            headers=headers,
+            timeout=30,
+        )
+        if models_response.is_success:
+            available = {
+                item.get("id")
+                for item in models_response.json().get("data", [])
+                if isinstance(item, dict)
+            }
+            candidates = [
+                "llama-3.1-8b-instant",
+                "llama-3.3-70b-versatile",
+                "openai/gpt-oss-20b",
+                "meta-llama/llama-4-scout-17b-16e-instruct",
+                "qwen/qwen3-32b",
+            ]
+            fallback = next((model for model in candidates if model in available), None)
+            if fallback:
+                logger.warning("Groq model '%s' unavailable; using '%s'", settings.GROQ_MODEL, fallback)
+                response = request(fallback)
+        
     if response.is_error:
         detail = response.text[:500].replace("\n", " ")
         raise AIServiceError(
