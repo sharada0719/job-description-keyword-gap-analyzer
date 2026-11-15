@@ -4,6 +4,7 @@ All values are read from environment variables / .env file.
 """
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -57,6 +58,15 @@ class Settings(BaseSettings):
 
         if url.startswith("postgresql://"):
             url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+
+        # Supabase provides sslmode=require, while asyncpg expects the
+        # equivalent SQLAlchemy query parameter to be named ssl.
+        parts = urlsplit(url)
+        query = [
+            ("ssl" if key == "sslmode" else key, value)
+            for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        ]
+        url = urlunsplit(parts._replace(query=urlencode(query)))
 
         return url
 
