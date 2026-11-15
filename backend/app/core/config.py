@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "gemini"
     AI_ANALYSIS_MODEL: str = "gemini-2.0-flash"
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     # Thresholds remain configurable for the normalized LLM match scores.
     SIMILARITY_THRESHOLD: float = 0.75
     # Min embedding similarity for the "uncertain" match band. Matches at or

@@ -147,7 +147,11 @@ def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
         },
         timeout=120,
     )
-    response.raise_for_status()
+    if response.is_error:
+        detail = response.text[:500].replace("\n", " ")
+        raise AIServiceError(
+            f"Groq API returned HTTP {response.status_code}: {detail}"
+        )
     return response.json()["choices"][0]["message"]["content"]
 
 
