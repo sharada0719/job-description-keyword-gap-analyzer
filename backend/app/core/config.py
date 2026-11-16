@@ -140,8 +140,6 @@ class Settings(BaseSettings):
         return [e.strip() for e in self.ALLOWED_EXTENSIONS.split(",") if e.strip()]
 
     # - Hosted AI -
-    AI_PROVIDER: str = "gemini"
-    AI_ANALYSIS_MODEL: str = "gemini-2.0-flash"
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     # Thresholds remain configurable for the normalized LLM match scores.
@@ -155,13 +153,6 @@ class Settings(BaseSettings):
     # required parsing/compatibility checks pass. Single source of truth -
     # surfaced to the frontend via the analysis report, not hard-coded there.
     ATS_COMPATIBILITY_THRESHOLD: float = 0.80
-
-    # - Gemini AI -
-    # Used for analysis and cover letters when AI_PROVIDER=gemini.
-    # https://aistudio.google.com/apikey
-    GEMINI_API_KEY: str = ""
-    # Cover letters use this model; analysis uses AI_ANALYSIS_MODEL.
-    GEMINI_MODEL: str = "gemini-2.0-flash"
 
     # - Email / SMTP (Forgot Password) -
     # Set these to enable the Forgot Password email feature.

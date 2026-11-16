@@ -47,7 +47,7 @@ function RoleCard({ rec }) {
       if (err?.response?.status === 409) {
         setSaveState('saved')  // Already saved — treat as success
       } else {
-        setSaveError(err?.response?.data?.message || 'Failed to save.')
+        setSaveError(err?.response?.data?.message || err?.response?.data?.detail || 'Failed to save.')
         setSaveState('error')
       }
     }
@@ -150,7 +150,7 @@ export default function JobRecommendations({ analysisId }) {
       setData(result)
       setState('done')
     } catch (err) {
-      setErrorMsg(err?.response?.data?.message || 'Failed to load recommendations.')
+      setErrorMsg(err?.response?.data?.message || err?.response?.data?.detail || 'Failed to load recommendations.')
       setState('error')
     }
   }

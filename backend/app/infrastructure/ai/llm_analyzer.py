@@ -15,24 +15,27 @@ from app.infrastructure.ai.skill_taxonomy import normalize_keyword
 logger = get_logger("ai.llm_analyzer")
 
 _SYSTEM_PROMPT = """You are a precise resume and job-description analyzer.
-Return only valid JSON with exactly these keys:
+Return compact JSON with exactly these keys:
 {
   "resume_keywords": ["keyword"],
   "job_keywords": ["keyword"],
   "semantic_similarity": 0.0,
-  "matched": [{"keyword":"...","score":0.0,"match_type":"exact|semantic|uncertain","best_match":"...","evidence":"..."}],
-  "missing": [{"keyword":"...","best_match":null,"best_sim":0.0}]
+  "matched": [{"keyword":"...","score":1.0,"match_type":"exact|semantic|uncertain","evidence":"brief quote"}],
+  "missing": ["keyword"]
 }
 Rules:
+- Keep JSON compact and concise under 800 tokens.
 - Scores are numbers from 0.0 to 1.0.
 - Extract concrete technical skills, tools, frameworks, methods, and important domain terms.
 - Keep technology names distinct: Java is not JavaScript; React is not Vue.
 - Match aliases such as JS to JavaScript and Node to Node.js.
 - Use exact for an explicit match, semantic for a strong equivalent, and uncertain only when plausible but unclear.
-- Evidence must be a short quote from the resume when available.
+- Evidence must be a short quote (max 6 words) from the resume.
 - Do not invent resume evidence or qualifications.
-- Include each important job keyword exactly once in matched or missing.
+- Include each important job keyword in matched or missing.
 """
+
+_TEXT_TRUNCATION_LIMIT = 12_000
 
 
 def _clamp(value: Any) -> float:
@@ -121,98 +124,115 @@ def _normalise_result(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _gemini_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
-    from google import genai
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    response = client.models.generate_content(
-        model=settings.AI_ANALYSIS_MODEL,
-        contents=prompt,
-        config={"system_instruction": system_prompt, "response_mime_type": "application/json"},
-    )
-    return response.text or ""
+# ── Async Groq helpers ──────────────────────────────────────────────────────
 
 
-def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
-    headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}"}
+async def _groq_request(
+    client: httpx.AsyncClient,
+    model: str,
+    prompt: str,
+    system_prompt: str,
+    headers: dict,
+    max_tokens: int = 900,
+) -> httpx.Response:
+    """Send a single chat-completion request to Groq."""
     endpoint = "https://api.groq.com/openai/v1/chat/completions"
+    request_body: Dict[str, Any] = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": max_tokens,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+    }
+    # Groq reasoning models can put the whole response in a hidden channel.
+    if model.startswith("openai/"):
+        request_body["reasoning_format"] = "hidden"
+    return await client.post(endpoint, headers=headers, json=request_body)
 
-    def request(model: str) -> httpx.Response:
-        request_body = {
-            "model": model,
-            "temperature": 0,
-            "max_tokens": 3000,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-        }
-        # Groq reasoning models can put the whole response in a hidden channel.
-        # Ask them to return the requested JSON in the normal content channel.
-        if model.startswith("openai/"):
-            request_body["reasoning_format"] = "hidden"
-        return httpx.post(
-            endpoint,
-            headers=headers,
-            json=request_body,
-            timeout=120,
-        )
 
-    active_model = settings.GROQ_MODEL
-    response = request(active_model)
-    if response.status_code == 404:
-        # Model availability varies by account and changes over time. Discover
-        # an allowed chat model instead of failing on a stale configured ID.
-        models_response = httpx.get(
-            "https://api.groq.com/openai/v1/models",
-            headers=headers,
-            timeout=30,
-        )
-        if models_response.is_success:
-            available = {
-                item.get("id")
-                for item in models_response.json().get("data", [])
-                if isinstance(item, dict)
-            }
-            candidates = [
-                "llama-3.1-8b-instant",
-                "llama-3.3-70b-versatile",
-                "openai/gpt-oss-20b",
-                "meta-llama/llama-4-scout-17b-16e-instruct",
-                "qwen/qwen3-32b",
-            ]
-            fallback = next((model for model in candidates if model in available), None)
-            if fallback:
-                logger.warning("Groq model '%s' unavailable; using '%s'", settings.GROQ_MODEL, fallback)
-                active_model = fallback
-                response = request(fallback)
-        
-    if response.is_error:
-        detail = response.text[:500].replace("\n", " ")
-        raise AIServiceError(
-            f"Groq API returned HTTP {response.status_code}: {detail}"
-        )
-    message = response.json()["choices"][0]["message"]
-    content = message.get("content")
-    if not content and message.get("reasoning_content"):
-        # A reasoning-only response is not a valid analysis payload. Retry with
-        # hidden reasoning before reporting an empty response to the user.
-        retry = request(active_model)
-        if retry.is_success:
-            content = retry.json()["choices"][0]["message"].get("content")
+async def _groq_call(prompt: str, system_prompt: str = _SYSTEM_PROMPT) -> str:
+    """Call Groq chat completions with automatic model-fallback and retry."""
+    headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}"}
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        active_model = settings.GROQ_MODEL
+        response = await _groq_request(client, active_model, prompt, system_prompt, headers, max_tokens=900)
+
+        # Model-availability fallback
+        if response.status_code == 404:
+            models_response = await client.get(
+                "https://api.groq.com/openai/v1/models",
+                headers=headers,
+                timeout=30,
+            )
+            if models_response.is_success:
+                available = {
+                    item.get("id")
+                    for item in models_response.json().get("data", [])
+                    if isinstance(item, dict)
+                }
+                candidates = [
+                    "qwen/qwen3.8-27b",
+                    "llama-3.3-70b-versatile",
+                    "llama-3.1-8b-instant",
+                    "openai/gpt-oss-120b",
+                    "openai/gpt-oss-20b",
+                    "meta-llama/llama-4-scout-17b-16e-instruct",
+                    "qwen/qwen3-32b",
+                ]
+                fallback = next((m for m in candidates if m in available), None)
+                if fallback:
+                    logger.warning(
+                        "Groq model '%s' unavailable; using '%s'",
+                        settings.GROQ_MODEL, fallback,
+                    )
+                    active_model = fallback
+                    response = await _groq_request(
+                        client, fallback, prompt, system_prompt, headers, max_tokens=900
+                    )
+
+        # Rate-limit retry (429)
+        if response.status_code == 429:
+            retry_after = 3.0
+            try:
+                header_val = response.headers.get("retry-after")
+                if header_val:
+                    retry_after = max(1.0, min(float(header_val), 10.0))
+            except (ValueError, TypeError):
+                pass
+            logger.warning("Groq rate limit exceeded (429); waiting %.1fs before retrying...", retry_after)
+            await asyncio.sleep(retry_after)
+            response = await _groq_request(
+                client, active_model, prompt, system_prompt, headers, max_tokens=750
+            )
+
+        if response.is_error:
+            detail = response.text[:500].replace("\n", " ")
+            raise AIServiceError(
+                f"Groq API returned HTTP {response.status_code}: {detail}"
+            )
+
+        message = response.json()["choices"][0]["message"]
+        content = message.get("content")
+        if not content:
+            # Empty or reasoning-only response — retry once.
+            retry = await _groq_request(
+                client, active_model, prompt, system_prompt, headers, max_tokens=900
+            )
+            if retry.is_success:
+                content = retry.json()["choices"][0]["message"].get("content")
+
     return content or ""
 
 
-def generate_hosted_text(prompt: str, system_prompt: str) -> str:
-    """Generate text through the configured Gemini or Groq provider."""
-    if settings.AI_PROVIDER == "gemini" and not settings.GEMINI_API_KEY.strip():
-        raise ValidationError("GEMINI_API_KEY is not configured in the backend environment.")
-    if settings.AI_PROVIDER == "groq" and not settings.GROQ_API_KEY.strip():
+async def generate_hosted_text(prompt: str, system_prompt: str) -> str:
+    """Generate text through Groq (async)."""
+    if not settings.GROQ_API_KEY.strip():
         raise ValidationError("GROQ_API_KEY is not configured in the backend environment.")
-    if settings.AI_PROVIDER not in {"gemini", "groq"}:
-        raise ValidationError("AI_PROVIDER must be either gemini or groq.")
     try:
-        caller = _gemini_call if settings.AI_PROVIDER == "gemini" else _groq_call
-        text = caller(prompt, system_prompt)
+        text = await _groq_call(prompt, system_prompt)
         if not text.strip():
             raise AIServiceError("Hosted AI returned an empty response.")
         return text.strip()
@@ -220,25 +240,32 @@ def generate_hosted_text(prompt: str, system_prompt: str) -> str:
         raise
     except Exception as exc:
         logger.exception("Hosted text generation failed")
-        raise AIServiceError(f"{settings.AI_PROVIDER.title()} text generation failed: {exc}") from exc
+        raise AIServiceError(f"Groq text generation failed: {exc}") from exc
 
 
 async def analyze_resume_and_job(resume_text: str, job_text: str) -> Dict[str, Any]:
-    if not settings.AI_PROVIDER:
-        raise ValidationError("Set AI_PROVIDER to gemini or groq in the backend environment.")
-    if settings.AI_PROVIDER == "gemini" and not settings.GEMINI_API_KEY.strip():
-        raise ValidationError("GEMINI_API_KEY is not configured in the backend environment.")
-    if settings.AI_PROVIDER == "groq" and not settings.GROQ_API_KEY.strip():
+    if not settings.GROQ_API_KEY.strip():
         raise ValidationError("GROQ_API_KEY is not configured in the backend environment.")
-    if settings.AI_PROVIDER not in {"gemini", "groq"}:
-        raise ValidationError("AI_PROVIDER must be either gemini or groq.")
+
+    # Warn when input text is truncated
+    if len(resume_text) > _TEXT_TRUNCATION_LIMIT:
+        logger.warning(
+            "Resume text truncated from %d to %d characters",
+            len(resume_text), _TEXT_TRUNCATION_LIMIT,
+        )
+    if len(job_text) > _TEXT_TRUNCATION_LIMIT:
+        logger.warning(
+            "Job description text truncated from %d to %d characters",
+            len(job_text), _TEXT_TRUNCATION_LIMIT,
+        )
 
     prompt = (
         "Analyze these two documents. Return only the JSON structure requested.\n\n"
-        f"RESUME:\n{resume_text[:12000]}\n\nJOB DESCRIPTION:\n{job_text[:12000]}"
+        f"RESUME:\n{resume_text[:_TEXT_TRUNCATION_LIMIT]}\n\n"
+        f"JOB DESCRIPTION:\n{job_text[:_TEXT_TRUNCATION_LIMIT]}"
     )
     try:
-        raw = await asyncio.to_thread(_gemini_call if settings.AI_PROVIDER == "gemini" else _groq_call, prompt)
+        raw = await _groq_call(prompt)
         # Some Groq models reject response_format=json_object. The prompt still
         # requires JSON, and this accepts either plain JSON or a fenced block.
         cleaned = raw.strip()
@@ -264,4 +291,4 @@ async def analyze_resume_and_job(resume_text: str, job_text: str) -> Dict[str, A
         raise
     except Exception as exc:
         logger.exception("Hosted AI analysis failed")
-        raise AIServiceError(f"{settings.AI_PROVIDER.title()} analysis failed: {exc}") from exc
+        raise AIServiceError(f"Groq analysis failed: {exc}") from exc

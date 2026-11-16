@@ -5,6 +5,7 @@ import { resumesApi } from '../api/resumes.js'
 import { jobsApi }    from '../api/jobs.js'
 import { analysisApi } from '../api/analysis.js'
 import Spinner from '../components/common/Spinner.jsx'
+import Alert from '../components/common/Alert.jsx'
 import { formatScore, formatDate } from '../utils/formatters.js'
 
 function scoreColor(s) {
@@ -45,20 +46,26 @@ export default function DashboardPage() {
   const { user }  = useAuth()
   const firstName = user?.full_name?.split(' ')[0] ?? 'there'
 
-  const [stats,   setStats]   = useState({ resumes: 0, jobs: 0, analyses: 0, bestScore: null })
-  const [recent,  setRecent]  = useState([])
-  const [loading, setLoading] = useState(true)
+  const [stats,      setStats]      = useState({ resumes: 0, jobs: 0, analyses: 0, bestScore: null })
+  const [recent,     setRecent]     = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [fetchError, setFetchError] = useState(null)
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       resumesApi.list(0, 100),
       jobsApi.list(0, 100),
       analysisApi.list(0, 50),
     ])
-      .then(([resumeData, jobData, analysisData]) => {
+      .then(([resumeRes, jobRes, analysisRes]) => {
+        const resumeData = resumeRes.status === 'fulfilled' ? resumeRes.value : []
+        const jobData = jobRes.status === 'fulfilled' ? jobRes.value : []
+        const analysisData = analysisRes.status === 'fulfilled' ? analysisRes.value : []
+
         const bestScore = analysisData.length
           ? Math.max(...analysisData.map((a) => a.overall_score))
           : null
+
         setStats({
           resumes:  resumeData.length,
           jobs:     jobData.length,
@@ -66,8 +73,15 @@ export default function DashboardPage() {
           bestScore,
         })
         setRecent(analysisData.slice(0, 6))
+
+        const failed = []
+        if (resumeRes.status === 'rejected') failed.push('resumes')
+        if (jobRes.status === 'rejected') failed.push('job descriptions')
+        if (analysisRes.status === 'rejected') failed.push('analyses')
+        if (failed.length > 0) {
+          setFetchError(`Could not load latest data for: ${failed.join(', ')}.`)
+        }
       })
-      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
@@ -81,6 +95,8 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
+      {fetchError && <Alert variant="warning" message={fetchError} />}
+
       {/* Welcome */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>

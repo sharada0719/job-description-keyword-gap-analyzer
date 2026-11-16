@@ -69,15 +69,16 @@ apiClient.interceptors.response.use(
       }
 
       if (_isRefreshing) {
-        // A refresh is already in-flight — queue this request.
+        // A refresh is already in-flight — queue this request and return a
+        // promise that resolves/rejects with the actual retried response.
         return new Promise((resolve, reject) => {
           _failedQueue.push({ resolve, reject })
+        }).then((newToken) => {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
+          return apiClient(originalRequest)
         })
-          .then((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
-            return apiClient(originalRequest)
-          })
-          .catch((err) => Promise.reject(err))
+        // Don't catch here — let the retry error propagate naturally to the
+        // original caller instead of replacing it with the refresh error.
       }
 
       originalRequest._retry = true

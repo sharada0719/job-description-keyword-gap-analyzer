@@ -14,14 +14,26 @@ function scoreBadge(s) {
 }
 
 export default function AnalysisHistoryPage() {
-  const { analyses, loading, error, deleteAnalysis } = useAnalysisList()
+  const { analyses, loading, error, deleteError, deleteAnalysis } = useAnalysisList()
+  const [localDeleteError, setLocalDeleteError] = useState(null)
   const [confirmId, setConfirmId] = useState(null)
 
   async function handleDelete(id) {
-    try { await deleteAnalysis(id) }
-    catch { /* intentional */ }
-    finally { setConfirmId(null) }
+    setLocalDeleteError(null)
+    try {
+      await deleteAnalysis(id)
+    } catch (err) {
+      setLocalDeleteError(
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        'Failed to delete analysis.'
+      )
+    } finally {
+      setConfirmId(null)
+    }
   }
+
+  const activeDeleteError = deleteError || localDeleteError
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -33,7 +45,8 @@ export default function AnalysisHistoryPage() {
         <Link to="/analysis/new" className="btn-gradient">⚡ New Analysis</Link>
       </div>
 
-      <div className="card">
+      <div className="card space-y-4">
+        {activeDeleteError && <Alert message={activeDeleteError} variant="error" />}
         {loading && <div className="flex justify-center py-10"><Spinner /></div>}
         {error   && <Alert message={error} variant="error" />}
         {!loading && !error && analyses.length === 0 && (

@@ -3,11 +3,11 @@ Tests for the AI Cover Letter Generator.
 
 Tests cover:
   - DTO validation (by-ID mode, raw-text mode, mixed, invalid).
-  - Service validation (missing inputs, missing API key, Gemini failure).
-  - Successful generation (with a mock Gemini client).
+  - Service validation (missing inputs and missing API key).
+  - Successful generation (with a mocked Groq service).
   - No-fabrication prompt constraints.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -70,115 +70,106 @@ def test_dto_company_name_optional_in_raw_mode():
 
 # ── Service validation ────────────────────────────────────────────────────────
 
-def test_missing_resume_text_raises_validation_error():
+@pytest.mark.asyncio
+async def test_missing_resume_text_raises_validation_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
+        mock_settings.GROQ_API_KEY = "fake-key"
         with pytest.raises(ValidationError, match="Resume text is required"):
-            generate_cover_letter("", "Engineer", "Corp", "Job desc")
+            await generate_cover_letter("", "Engineer", "Corp", "Job desc")
 
 
-def test_missing_job_title_raises_validation_error():
+@pytest.mark.asyncio
+async def test_missing_job_title_raises_validation_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
+        mock_settings.GROQ_API_KEY = "fake-key"
         with pytest.raises(ValidationError, match="Job title is required"):
-            generate_cover_letter("resume", "", "Corp", "Job desc")
+            await generate_cover_letter("resume", "", "Corp", "Job desc")
 
 
-def test_missing_job_description_raises_validation_error():
+@pytest.mark.asyncio
+async def test_missing_job_description_raises_validation_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
+        mock_settings.GROQ_API_KEY = "fake-key"
         with pytest.raises(ValidationError, match="Job description is required"):
-            generate_cover_letter("resume", "Engineer", "Corp", "")
+            await generate_cover_letter("resume", "Engineer", "Corp", "")
 
 
-def test_missing_api_key_raises_validation_error():
+@pytest.mark.asyncio
+async def test_missing_api_key_raises_validation_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = ""
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
-        with pytest.raises(ValidationError, match="Gemini API key is not configured"):
-            generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
+        mock_settings.GROQ_API_KEY = ""
+        with patch("app.infrastructure.ai.llm_analyzer.settings") as mock_ai_settings:
+            mock_ai_settings.GROQ_API_KEY = ""
+            with pytest.raises(ValidationError, match="GROQ_API_KEY is not configured"):
+                await generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
 
 
-def test_whitespace_api_key_raises_validation_error():
+@pytest.mark.asyncio
+async def test_whitespace_api_key_raises_validation_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "   "
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
-        with pytest.raises(ValidationError, match="Gemini API key"):
-            generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
+        mock_settings.GROQ_API_KEY = "   "
+        with patch("app.infrastructure.ai.llm_analyzer.settings") as mock_ai_settings:
+            mock_ai_settings.GROQ_API_KEY = "   "
+            with pytest.raises(ValidationError, match="GROQ_API_KEY"):
+                await generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
 
 
-# ── Gemini API failure ────────────────────────────────────────────────────────
+# ── Groq API failure ──────────────────────────────────────────────────────────
 
-def test_gemini_api_failure_raises_ai_service_error():
+@pytest.mark.asyncio
+async def test_groq_api_failure_raises_ai_service_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
-        with patch("app.application.services.cover_letter_service.genai") as mock_genai:
-            mock_client = MagicMock()
-            mock_genai.Client.return_value = mock_client
-            mock_client.models.generate_content.side_effect = RuntimeError("API timeout")
+        mock_settings.GROQ_API_KEY = "fake-key"
+        with patch(
+            "app.application.services.cover_letter_service.generate_hosted_text",
+            side_effect=RuntimeError("API timeout"),
+        ):
             with pytest.raises(AIServiceError, match="Failed to generate cover letter"):
-                generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
+                await generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
 
 
-def test_gemini_empty_response_raises_ai_service_error():
+@pytest.mark.asyncio
+async def test_groq_empty_response_raises_ai_service_error():
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
-        with patch("app.application.services.cover_letter_service.genai") as mock_genai:
-            mock_client = MagicMock()
-            mock_genai.Client.return_value = mock_client
-            mock_response = MagicMock()
-            mock_response.text = ""
-            mock_client.models.generate_content.return_value = mock_response
+        mock_settings.GROQ_API_KEY = "fake-key"
+        with patch(
+            "app.application.services.cover_letter_service.generate_hosted_text",
+            return_value="",
+        ):
             with pytest.raises(AIServiceError, match="empty response"):
-                generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
+                await generate_cover_letter("resume", "Engineer", "Corp", "Job desc")
 
 
 # ── Successful generation (mock) ─────────────────────────────────────────────
 
-def test_successful_generation_returns_text():
+@pytest.mark.asyncio
+async def test_successful_generation_returns_text():
     expected_letter = "Dear Hiring Manager,\n\nI am writing to express my interest..."
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
-        with patch("app.application.services.cover_letter_service.genai") as mock_genai:
-            mock_client = MagicMock()
-            mock_genai.Client.return_value = mock_client
-            mock_response = MagicMock()
-            mock_response.text = expected_letter
-            mock_client.models.generate_content.return_value = mock_response
-
-            result = generate_cover_letter(
+        mock_settings.GROQ_API_KEY = "fake-key"
+        with patch(
+            "app.application.services.cover_letter_service.generate_hosted_text",
+            return_value=expected_letter,
+        ):
+            result = await generate_cover_letter(
                 resume_text="Python developer with 5 years experience",
                 job_title="Senior Python Developer",
                 company_name="Tech Corp",
                 job_description="Looking for a Python developer with Django experience",
             )
             assert result == expected_letter
-            # Verify the Gemini client was called correctly
-            mock_client.models.generate_content.assert_called_once()
-            call_kwargs = mock_client.models.generate_content.call_args
-            assert call_kwargs.kwargs["model"] == "gemini-2.0-flash"
-            assert "Python developer" in call_kwargs.kwargs["contents"]
 
 
-def test_successful_generation_without_company():
+@pytest.mark.asyncio
+async def test_successful_generation_without_company():
     expected_letter = "Dear Hiring Manager..."
     with patch("app.application.services.cover_letter_service.settings") as mock_settings:
-        mock_settings.GEMINI_API_KEY = "fake-key"
-        mock_settings.GEMINI_MODEL = "gemini-2.0-flash"
-        with patch("app.application.services.cover_letter_service.genai") as mock_genai:
-            mock_client = MagicMock()
-            mock_genai.Client.return_value = mock_client
-            mock_response = MagicMock()
-            mock_response.text = expected_letter
-            mock_client.models.generate_content.return_value = mock_response
-
-            result = generate_cover_letter(
+        mock_settings.GROQ_API_KEY = "fake-key"
+        with patch(
+            "app.application.services.cover_letter_service.generate_hosted_text",
+            return_value=expected_letter,
+        ):
+            result = await generate_cover_letter(
                 resume_text="resume text", job_title="Engineer",
                 company_name="", job_description="job desc",
             )

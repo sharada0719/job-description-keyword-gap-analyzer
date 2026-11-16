@@ -27,6 +27,7 @@ export default function AnalysisDetailPage() {
   const [showAtsModal, setShowAtsModal] = useState(false)
   const [showCoverLetter, setShowCoverLetter] = useState(false)
   const [jobDetails,   setJobDetails]   = useState(null)
+  const [jobDetailsError, setJobDetailsError] = useState(null)
 
   // Show ATS success popup once per analysis per session
   useEffect(() => {
@@ -40,8 +41,23 @@ export default function AnalysisDetailPage() {
   // Fetch job description details for the Cover Letter tab
   useEffect(() => {
     if (activeTab !== 'Cover Letter' || !analysis?.job_description_id || jobDetails) return
-    jobsApi.get(analysis.job_description_id).then(setJobDetails).catch(() => {})
-  }, [activeTab, analysis]) // eslint-disable-line react-hooks/exhaustive-deps
+    let isMounted = true
+    jobsApi
+      .get(analysis.job_description_id)
+      .then((data) => {
+        if (isMounted) setJobDetails(data)
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setJobDetailsError(
+            err?.response?.data?.message ||
+            err?.response?.data?.detail ||
+            'Failed to load job details.'
+          )
+        }
+      })
+    return () => { isMounted = false }
+  }, [activeTab, analysis?.job_description_id, jobDetails])
 
   function closeAtsModal() {
     setShowAtsModal(false)
@@ -63,7 +79,9 @@ export default function AnalysisDetailPage() {
     try {
       await analysisApi.delete(id)
       navigate('/analysis')
-    } catch { alert('Delete failed.') }
+    } catch (err) {
+      alert(err?.response?.data?.message || err?.response?.data?.detail || 'Delete failed.')
+    }
   }
 
   if (loading) {
@@ -209,11 +227,13 @@ export default function AnalysisDetailPage() {
           <div>
             <h3 className="section-title">AI Cover Letter Generator</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Generate a personalized cover letter using Google Gemini AI. The
+              Generate a personalized cover letter using Groq AI. The
               letter is based on your actual resume and the job description from
               this analysis — no qualifications are invented.
             </p>
           </div>
+
+          {jobDetailsError && <Alert variant="warning" message={jobDetailsError} />}
 
           {/* Job context preview */}
           <div className="rounded-xl bg-navy-500 border border-white/[0.07] p-4 space-y-2">
@@ -242,7 +262,7 @@ export default function AnalysisDetailPage() {
             </button>
           </div>
           <p className="text-xs text-slate-500 text-center -mt-3">
-            Powered by Google Gemini AI · Requires GEMINI_API_KEY in backend .env
+            Powered by Groq AI · Requires GROQ_API_KEY in backend .env
           </p>
         </div>
       )}

@@ -33,7 +33,7 @@ export default function NewAnalysisPage() {
       })
       navigate(`/analysis/${result.id}`)
     } catch (err) {
-      setError(err?.response?.data?.message || 'Analysis failed. Please try again.')
+      setError(err?.response?.data?.message || err?.response?.data?.detail || 'Analysis failed. Please try again.')
     } finally { setRunning(false) }
   }
 

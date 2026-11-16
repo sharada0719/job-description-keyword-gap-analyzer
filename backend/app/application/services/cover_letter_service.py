@@ -1,5 +1,5 @@
 """
-Cover letter generation service using Google Gemini AI.
+Cover letter generation service using Groq.
 
 Generates a personalized, professional cover letter from the candidate's
 resume and job details.  Never invents qualifications — only connects
@@ -59,14 +59,14 @@ def _build_prompt(
 # ── Public API ───────────────────────────────────────────────────────────────
 
 
-def generate_cover_letter(
+async def generate_cover_letter(
     resume_text: str,
     job_title: str,
     company_name: str,
     job_description: str,
 ) -> str:
     """
-    Generate a cover letter using Google Gemini.
+    Generate a cover letter using Groq.
 
     Args:
         resume_text:      Full extracted resume text.
@@ -79,7 +79,7 @@ def generate_cover_letter(
 
     Raises:
         ValidationError:  If required inputs are missing or the API key is absent.
-        AIServiceError:  If the Gemini API call fails.
+        AIServiceError:  If the Groq API call fails.
     """
     # ── Validate inputs ────────────────────────────────────────────────────
     if not resume_text or not resume_text.strip():
@@ -94,15 +94,15 @@ def generate_cover_letter(
         prompt = _build_prompt(resume_text, job_title, company_name, job_description)
 
         logger.info(
-            "Generating cover letter: provider='%s' job_title='%s' company='%s'",
-            settings.AI_PROVIDER, job_title, company_name or "(none)",
+            "Generating cover letter: provider='groq' job_title='%s' company='%s'",
+            job_title, company_name or "(none)",
         )
 
-        cover_letter = generate_hosted_text(prompt, _SYSTEM_INSTRUCTION)
+        cover_letter = await generate_hosted_text(prompt, _SYSTEM_INSTRUCTION)
 
         if not cover_letter or not cover_letter.strip():
             raise AIServiceError(
-                "Gemini returned an empty response. Please try again."
+                "Groq returned an empty response. Please try again."
             )
 
         logger.info("Cover letter generated successfully (%d chars)", len(cover_letter))

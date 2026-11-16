@@ -2,7 +2,7 @@
 Cover letter generator endpoint.
 
 POST /api/v1/cover-letter/
-  Generates a personalized cover letter using Google Gemini AI.
+  Generates a personalized cover letter using Groq AI.
 
 Two modes:
   1. By ID (preferred): pass resume_id + job_description_id — the backend
@@ -39,7 +39,7 @@ async def generate_cover_letter_endpoint(
     db: DBSession,
 ) -> CoverLetterResponse:
     """
-    Generate a personalized cover letter using Google Gemini AI.
+    Generate a personalized cover letter using Groq AI.
 
     The cover letter is based on the candidate's actual resume content and
     the target job details.  The AI never invents qualifications — it only
@@ -77,7 +77,7 @@ async def generate_cover_letter_endpoint(
         job_description = request.job_description or ""
 
     # ── Generate ───────────────────────────────────────────────────────────
-    cover_letter = generate_cover_letter(
+    cover_letter = await generate_cover_letter(
         resume_text=resume_text,
         job_title=job_title,
         company_name=company_name,

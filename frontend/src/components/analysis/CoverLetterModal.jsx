@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { coverLetterApi } from '../../api/coverLetter.js'
 import Spinner from '../common/Spinner.jsx'
 import Alert from '../common/Alert.jsx'
@@ -7,7 +7,7 @@ import Alert from '../common/Alert.jsx'
  * Cover Letter Generator modal.
  *
  * Opens with resume_id and job_description_id; fetches the cover letter from
- * the backend (which calls Gemini).  The generated text is editable.
+ * the backend (which calls Groq).  The generated text is editable.
  *
  * Actions: Copy, Download TXT, Regenerate, Close.
  */
@@ -25,32 +25,8 @@ export default function CoverLetterModal({
   const [copied,       setCopied]       = useState(false)
   const textareaRef = useRef(null)
 
-  // ── Generate on open ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!open) return
-    // Reset state when opening
-    setState('idle')
-    setCoverLetter('')
-    setErrorMsg('')
-    setCopied(false)
-  }, [open])
-
-  // ── Auto-generate when modal opens with valid IDs ────────────────────────
-  useEffect(() => {
-    if (open && resumeId && jobDescriptionId && state === 'idle') {
-      handleGenerate()
-    }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Escape to close ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!open) return
-    const fn = (e) => { if (e.key === 'Escape') onClose?.() }
-    document.addEventListener('keydown', fn)
-    return () => document.removeEventListener('keydown', fn)
-  }, [open, onClose])
-
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
+    if (!resumeId || !jobDescriptionId) return
     setState('generating')
     setErrorMsg('')
     try {
@@ -64,11 +40,36 @@ export default function CoverLetterModal({
       setErrorMsg(
         err?.response?.data?.message ||
         err?.response?.data?.detail ||
-        'Failed to generate cover letter. Please ensure GEMINI_API_KEY is set in the backend .env file.'
+        'Failed to generate cover letter. Please ensure GROQ_API_KEY is set in the backend .env file.'
       )
       setState('error')
     }
-  }
+  }, [resumeId, jobDescriptionId])
+
+  // ── Auto-generate on open / reset on close ─────────────────────────────────
+  useEffect(() => {
+    if (!open) {
+      setState('idle')
+      setCoverLetter('')
+      setErrorMsg('')
+      setCopied(false)
+      return
+    }
+
+    if (resumeId && jobDescriptionId) {
+      handleGenerate()
+    }
+  }, [open, resumeId, jobDescriptionId, handleGenerate])
+
+  // ── Escape to close ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!open) return
+    const fn = (e) => { if (e.key === 'Escape') onClose?.() }
+    document.addEventListener('keydown', fn)
+    return () => document.removeEventListener('keydown', fn)
+  }, [open, onClose])
+
+
 
   function handleCopy() {
     navigator.clipboard.writeText(coverLetter).then(() => {
@@ -136,7 +137,7 @@ export default function CoverLetterModal({
             <div className="flex flex-col items-center justify-center py-16 space-y-4">
               <Spinner size="lg" />
               <p className="text-sm text-slate-400">
-                Generating your personalized cover letter with Gemini AI…
+                Generating your personalized cover letter with Groq AI…
               </p>
               <p className="text-xs text-slate-600">
                 This may take a few seconds. The AI analyzes your resume and the

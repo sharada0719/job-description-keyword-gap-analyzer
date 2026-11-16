@@ -2,7 +2,7 @@ import apiClient from './client.js'
 
 export const coverLetterApi = {
   /**
-   * Generate a cover letter using Google Gemini AI.
+   * Generate a cover letter using Groq AI.
    *
    * @param {object} params
    * @param {number} params.resume_id          - Existing resume ID (preferred).

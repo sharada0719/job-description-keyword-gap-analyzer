@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.exception_handlers import (
     app_exception_handler,
+    http_exception_handler,
     unhandled_exception_handler,
 )
 from app.api.v1.router import api_router
@@ -60,7 +61,9 @@ def create_app() -> FastAPI:
     )
 
     # ── Exception Handlers ────────────────────────────────────────────────────
+    from fastapi.exceptions import HTTPException
     app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # ── Routers ───────────────────────────────────────────────────────────────

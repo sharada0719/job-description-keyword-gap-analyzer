@@ -9,7 +9,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        secure: true,
+        secure: false,
         // Increase timeout for heavy NLP analysis requests (Render free tier can
         // take 60+ seconds for the first request after a cold start).
         timeout: 120_000,

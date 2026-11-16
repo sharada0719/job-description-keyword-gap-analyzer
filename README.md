@@ -10,7 +10,7 @@ Upload your resume, paste a job description, and instantly discover which keywor
 - **JWT Authentication** — register, login, token refresh
 - **Resume Upload** — PDF and DOCX parsing with `pdfplumber` and `python-docx`
 - **Job Description Management** — save and reuse job postings
-- **AI Keyword Extraction and Semantic Similarity** — hosted Gemini or Groq analysis; no local NLP model download is required
+- **AI Keyword Extraction and Semantic Similarity** — hosted Groq analysis; no local NLP model download is required
 - **Gap Analysis** — matched / missing keywords, composite score, suggestions
 - **Improved Skill Matching** — exact/alias matching with confusable-technology guards (Java ≠ JavaScript, React ≠ Vue) and an "uncertain" band. Match types and evidence snippets are returned.
 - **ATS Compatibility Score** — independent, text-based ATS analysis with 5 transparent checks, warnings, and recommendations. Score is **not** derived from the job-match score.
@@ -29,7 +29,7 @@ Upload your resume, paste a job description, and instantly discover which keywor
 | Backend     | FastAPI, Python 3.12, Uvicorn                     |
 | Database    | SQLite (via aiosqlite), SQLAlchemy 2 (async), Alembic |
 | Auth        | JWT (python-jose), bcrypt (passlib)               |
-| AI          | Google Gemini or Groq API                        |
+| AI          | Groq API                                          |
 | Parsing     | pdfplumber, python-docx                           |
 | Development | Vite dev server and Uvicorn                        |
 
